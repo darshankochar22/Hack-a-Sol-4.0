@@ -45,7 +45,8 @@ export default function Home() {
 
       <main className={`bg-background text-foreground ${raceMode ? "speed-lines" : ""}`}>
         <LandingHero />
-        <AboutMachine />
+        {/* Commented out rest of landing page sections */}
+        {/* <AboutMachine />
         <Experience />
         <CarEvolution />
         <DriverTeams />
@@ -53,7 +54,7 @@ export default function Home() {
         <TelemetryDashboard />
         <Gallery />
         <Leaderboard />
-        <Footer />
+        <Footer /> */}
       </main>
     </>
   )
