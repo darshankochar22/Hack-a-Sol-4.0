@@ -118,23 +118,43 @@ async function refreshRaceFromChain(raceId) {
     races.set(formatted.raceId, formatted);
     return formatted;
   } catch (error) {
-    console.error(`Failed to fetch race ${raceId} from contract`, error);
-    throw error;
+    // Check if it's a "race doesn't exist" error (empty response)
+    if (error.code === "BAD_DATA" && error.value === "0x") {
+      // Race doesn't exist - this is expected, not an error
+      return null;
+    }
+    // For other errors, log but don't throw for individual race queries
+    console.warn(
+      `⚠️  Race ${raceId} not found or error fetching: ${
+        error.message || error.code || "Unknown"
+      }`
+    );
+    return null;
   }
 }
 
 async function refreshBettingPoolFromChain(raceId) {
   try {
-    const race =
-      races.get(Number(raceId)) || (await refreshRaceFromChain(raceId));
+    let race = races.get(Number(raceId));
+    if (!race) {
+      race = await refreshRaceFromChain(raceId);
+    }
+    if (!race) {
+      // Race doesn't exist
+      return null;
+    }
     const raw = await contract.getBettingPool(raceId);
     const formatted = formatBettingPool(raw, race.participantTokenIds);
     bettingPools.set(Number(raceId), { raceId: Number(raceId), ...formatted });
     recordOddsSnapshot(Number(raceId));
     return bettingPools.get(Number(raceId));
   } catch (error) {
+    // Check if it's a "race doesn't exist" error
+    if (error.code === "BAD_DATA" && error.value === "0x") {
+      return null;
+    }
     console.error(`Failed to fetch betting pool for race ${raceId}`, error);
-    throw error;
+    return null; // Return null instead of throwing to prevent breaking event handlers
   }
 }
 
@@ -155,10 +175,19 @@ async function syncExistingRaces() {
     for (const evt of events) {
       const raceId = Number(evt.args?.raceId);
       console.log(`  - Syncing race ${raceId}`);
-      await refreshRaceFromChain(raceId);
+      const race = await refreshRaceFromChain(raceId);
+      if (!race) {
+        console.warn(`  ⚠️  Race ${raceId} from event not found on-chain`);
+      }
     }
 
     console.log(`✅ Synced ${races.size} races total`);
+
+    // If no races found from events, log a helpful message
+    if (races.size === 0) {
+      console.log("💡 Tip: Create a test race using:");
+      console.log("   node backend/scripts/create-test-race.js");
+    }
   } catch (error) {
     console.error("❌ Error syncing existing races:", error);
     throw error;
@@ -167,32 +196,71 @@ async function syncExistingRaces() {
 
 function subscribeToEvents() {
   contract.on("RaceCreated", async (raceId) => {
-    const race = await refreshRaceFromChain(Number(raceId));
-    eventBus.emit("raceCreated", race);
+    try {
+      const race = await refreshRaceFromChain(Number(raceId));
+      if (race) {
+        eventBus.emit("raceCreated", race);
+      }
+    } catch (error) {
+      console.error(
+        `Error handling RaceCreated event for race ${raceId}:`,
+        error
+      );
+    }
   });
 
   contract.on("RaceFinished", async (raceId, winnerTokenId) => {
-    const id = Number(raceId);
-    const race = races.get(id) || (await refreshRaceFromChain(id));
-    const updatedRace = {
-      ...race,
-      isFinished: true,
-      isActive: false,
-      winnerTokenId: Number(winnerTokenId),
-      endTime: Date.now(),
-    };
-    races.set(id, updatedRace);
-    eventBus.emit("raceFinished", updatedRace);
+    try {
+      const id = Number(raceId);
+      let race = races.get(id);
+      if (!race) {
+        race = await refreshRaceFromChain(id);
+      }
+      if (race) {
+        const updatedRace = {
+          ...race,
+          isFinished: true,
+          isActive: false,
+          winnerTokenId: Number(winnerTokenId),
+          endTime: Date.now(),
+        };
+        races.set(id, updatedRace);
+        eventBus.emit("raceFinished", updatedRace);
+      }
+    } catch (error) {
+      console.error(
+        `Error handling RaceFinished event for race ${raceId}:`,
+        error
+      );
+    }
   });
 
   contract.on("BetPlaced", async (raceId) => {
-    const pool = await refreshBettingPoolFromChain(Number(raceId));
-    eventBus.emit("bettingUpdated", pool);
+    try {
+      const pool = await refreshBettingPoolFromChain(Number(raceId));
+      if (pool) {
+        eventBus.emit("bettingUpdated", pool);
+      }
+    } catch (error) {
+      console.error(
+        `Error handling BetPlaced event for race ${raceId}:`,
+        error
+      );
+    }
   });
 
   contract.on("BettingPoolSettled", async (raceId) => {
-    const pool = await refreshBettingPoolFromChain(Number(raceId));
-    eventBus.emit("bettingSettled", pool);
+    try {
+      const pool = await refreshBettingPoolFromChain(Number(raceId));
+      if (pool) {
+        eventBus.emit("bettingSettled", pool);
+      }
+    } catch (error) {
+      console.error(
+        `Error handling BettingPoolSettled event for race ${raceId}:`,
+        error
+      );
+    }
   });
 }
 
@@ -363,6 +431,25 @@ async function updateTelemetry(raceId, tokenId, telemetryData) {
     );
   }
 
+  // First, check if the race exists and is active before attempting update
+  try {
+    const race = await contract.getRace(raceId);
+    const formattedRace = formatRace(race);
+
+    if (!formattedRace.isActive || formattedRace.isFinished) {
+      console.warn(
+        `[Telemetry] Race ${raceId} is not active (isActive: ${formattedRace.isActive}, isFinished: ${formattedRace.isFinished}). Skipping telemetry update.`
+      );
+      return { success: false, error: "Race is not active" };
+    }
+  } catch (error) {
+    // Race doesn't exist on-chain
+    console.warn(
+      `[Telemetry] Race ${raceId} does not exist on-chain. Skipping telemetry update.`
+    );
+    return { success: false, error: "Race does not exist on-chain" };
+  }
+
   const {
     positionX = 0,
     positionY = 0,
@@ -447,15 +534,30 @@ async function updateTelemetry(raceId, tokenId, telemetryData) {
     // Log error but don't throw - telemetry updates are best-effort
     // This prevents race crashes from telemetry issues
     if (error.code === "INVALID_ARGUMENT" || error.code === "CALL_EXCEPTION") {
+      // Try to decode the error reason if available
+      let errorMessage = error.message || "Unknown error";
+
+      // Check common error cases
+      if (
+        errorMessage.includes("Race not active") ||
+        errorMessage.includes("revert")
+      ) {
+        errorMessage = `Race ${raceId} is not active or does not exist on-chain`;
+      } else if (errorMessage.includes("missing revert data")) {
+        errorMessage = `Race ${raceId} is not active or transaction would revert (race may not exist, be finished, or caller may not be owner)`;
+      }
+
       console.warn(
-        `Failed to update telemetry on-chain (raceId: ${raceId}, tokenId: ${tokenId}):`,
-        error.message
+        `[Telemetry] Failed to update on-chain (raceId: ${raceId}, tokenId: ${tokenId}): ${errorMessage}`
       );
     } else {
-      console.error("Failed to update telemetry on-chain:", error);
+      console.error("[Telemetry] Failed to update on-chain:", error);
     }
     // Return success: false but don't throw to avoid breaking the race
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message || "Transaction would revert",
+    };
   }
 }
 

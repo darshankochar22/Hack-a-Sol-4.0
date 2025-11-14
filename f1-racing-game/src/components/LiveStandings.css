@@ -58,7 +58,7 @@
 
 .standings-row {
   display: grid;
-  grid-template-columns: 50px 1fr 80px 80px 60px 60px;
+  grid-template-columns: 50px 1fr 80px 80px 60px 140px;
   gap: 8px;
   padding: 8px 12px;
   border-radius: 6px;
@@ -171,6 +171,71 @@
   font-size: 12px;
 }
 
+.col-bet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.betting-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.bet-amount-input {
+  width: 60px;
+  padding: 4px 6px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  text-align: center;
+}
+
+.bet-amount-input:focus {
+  outline: none;
+  border-color: #22c55e;
+  background: rgba(30, 41, 59, 1);
+}
+
+.bet-amount-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bet-amount-input::placeholder {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.bet-button {
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.bet-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  transform: scale(1.05);
+}
+
+.bet-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (max-width: 1200px) {
   .live-standings {
     width: 350px;
@@ -178,8 +243,18 @@
   }
 
   .standings-row {
-    grid-template-columns: 40px 1fr 70px 70px 50px 50px;
+    grid-template-columns: 40px 1fr 70px 70px 50px 120px;
     font-size: 11px;
+  }
+
+  .bet-amount-input {
+    width: 50px;
+    font-size: 10px;
+  }
+
+  .bet-button {
+    padding: 4px 8px;
+    font-size: 10px;
   }
 }
 

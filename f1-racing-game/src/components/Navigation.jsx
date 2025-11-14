@@ -17,18 +17,6 @@ export function Navigation({ account, isConnected, connectWallet, disconnectWall
         <Link to="/" className={`nav-link ${isActive("/")}`}>
           🏁 Race
         </Link>
-        <Link to="/markets" className={`nav-link ${isActive("/markets")}`}>
-          📈 Markets
-        </Link>
-        <Link to="/race-control" className={`nav-link ${isActive("/race-control")}`}>
-          📡 Race Control
-        </Link>
-        <Link to="/performance" className={`nav-link ${isActive("/performance")}`}>
-          📊 Performance
-        </Link>
-        <Link to="/analytics" className={`nav-link ${isActive("/analytics")}`}>
-          📈 Analytics
-        </Link>
       </div>
       <div className="nav-wallet">
         {isConnected ? (

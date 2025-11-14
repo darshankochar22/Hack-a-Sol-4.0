@@ -13,23 +13,26 @@ const RACER_NFT_ABI = [
   "event RaceDataUpdated(uint256 indexed tokenId, uint256 currentSpeed, uint256 currentLap, uint256 position, uint256 lapProgress)",
 ];
 
-const TRADING_ENGINE_ABI = [
-  "function racePools(uint256) public view returns (uint256 raceId, uint256[] memory participatingTokenIds, uint256 totalPool, uint256 startTime, uint256 endTime, bool isActive, bool isSettled, uint256 winnerTokenId)",
+// RealtimeRacingEngine ABI - betting functions
+const REALTIME_RACING_ENGINE_ABI = [
+  "function getRace(uint256 raceId) external view returns (uint256 raceId_, uint256[] memory participantTokenIds, uint256[] memory botTokenIds, uint256 totalLaps, uint256 startTime, uint256 endTime, bool isActive, bool isFinished, uint256 winnerTokenId, uint256 totalDistance)",
   "function getOdds(uint256 raceId, uint256 tokenId) external view returns (uint256)",
-  "function getRacePool(uint256 raceId) external view returns (tuple(uint256 raceId, uint256[] participatingTokenIds, uint256 totalPool, uint256 startTime, uint256 endTime, bool isActive, bool isSettled, uint256 winnerTokenId))",
-  "function getRaceBets(uint256 raceId) external view returns (tuple(address bettor, uint256 tokenId, uint256 amount, uint256 timestamp, bool claimed)[] memory)",
+  "function getBettingPool(uint256 raceId) external view returns (uint256 totalPool, bool isSettled, uint256[] memory tokenIds, uint256[] memory betAmounts)",
   "function getUserBets(uint256 raceId, address user) external view returns (tuple(address bettor, uint256 tokenId, uint256 amount, uint256 timestamp, bool claimed)[] memory)",
   "function placeBet(uint256 raceId, uint256 tokenId) external payable",
   "function claimWinnings(uint256 raceId) external",
   "event BetPlaced(uint256 indexed raceId, address indexed bettor, uint256 indexed tokenId, uint256 amount)",
-  "event RaceSettled(uint256 indexed raceId, uint256 indexed winnerTokenId, uint256 totalPayout)",
+  "event BettingPoolSettled(uint256 indexed raceId, uint256 indexed winnerTokenId, uint256 totalPayout)",
 ];
 
 // Contract addresses (update these after deployment)
 // These should be set via environment variables or config
 export const CONTRACT_ADDRESSES = {
   RACER_NFT: process.env.REACT_APP_RACER_NFT_ADDRESS || "",
-  TRADING_ENGINE: process.env.REACT_APP_TRADING_ENGINE_ADDRESS || "",
+  RACING_ENGINE:
+    process.env.REACT_APP_RACING_ENGINE_ADDRESS ||
+    process.env.REACT_APP_TRADING_ENGINE_ADDRESS ||
+    "",
 };
 
 // Get contract instances
@@ -45,12 +48,15 @@ export function getRacerNFTContract(provider) {
 }
 
 export function getTradingEngineContract(provider) {
-  if (!CONTRACT_ADDRESSES.TRADING_ENGINE) {
-    throw new Error("TradingEngine contract address not set");
+  // Use RealtimeRacingEngine address (backward compatible with TRADING_ENGINE_ADDRESS)
+  if (!CONTRACT_ADDRESSES.RACING_ENGINE) {
+    throw new Error(
+      "RacingEngine contract address not set. Please set REACT_APP_RACING_ENGINE_ADDRESS"
+    );
   }
   return new ethers.Contract(
-    CONTRACT_ADDRESSES.TRADING_ENGINE,
-    TRADING_ENGINE_ABI,
+    CONTRACT_ADDRESSES.RACING_ENGINE,
+    REALTIME_RACING_ENGINE_ABI,
     provider
   );
 }
@@ -95,16 +101,19 @@ export async function getRaceData(contract, tokenId) {
 
 export async function getRacePool(contract, raceId) {
   try {
-    const pool = await contract.getRacePool(raceId);
+    // RealtimeRacingEngine uses getBettingPool which returns different structure
+    // But we can also use getRace for race details
+    const pool = await contract.getBettingPool(raceId);
+    const race = await contract.getRace(raceId);
     return {
-      raceId: Number(pool[0]),
-      participatingTokenIds: pool[1].map((id) => Number(id)),
-      totalPool: pool[2].toString(),
-      startTime: Number(pool[3]),
-      endTime: Number(pool[4]),
-      isActive: pool[5],
-      isSettled: pool[6],
-      winnerTokenId: Number(pool[7]),
+      raceId: Number(raceId),
+      participatingTokenIds: race[1].map((id) => Number(id)), // participantTokenIds from getRace
+      totalPool: pool[0].toString(), // totalPool from getBettingPool
+      startTime: Number(race[4]), // startTime from getRace
+      endTime: Number(race[5]), // endTime from getRace
+      isActive: race[6], // isActive from getRace
+      isSettled: pool[1], // isSettled from getBettingPool
+      winnerTokenId: Number(race[8]), // winnerTokenId from getRace
     };
   } catch (error) {
     console.error("Error fetching race pool:", error);

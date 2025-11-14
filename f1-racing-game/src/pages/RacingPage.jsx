@@ -3,6 +3,7 @@ import { Physics } from "@react-three/cannon";
 import { F1RacingScene } from "../components/F1RacingScene";
 import { CarSelection } from "../components/CarSelection";
 import { BettingMarket } from "../components/BettingMarket";
+import { MarketsBoard } from "../components/MarketsBoard";
 import { RaceSetup } from "../components/RaceSetup";
 import { LiveStandings } from "../components/LiveStandings";
 import { useState, useCallback, useMemo, useEffect } from "react";
@@ -14,6 +15,7 @@ import {
 } from "../utils/contracts";
 import { carConfigs } from "../config/carConfigs";
 import { useRace } from "../contexts/RaceContext";
+// Data fetching is handled by MarketsBoard component
 
 export function RacingPage({ provider, signer, account, isConnected, racers, setRacers }) {
   const {
@@ -34,6 +36,7 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
 
   const [raceData, setRaceData] = useState({});
   const [showRaceSetup, setShowRaceSetup] = useState(false);
+  const [showMarkets, setShowMarkets] = useState(false);
 
   const handleLapComplete = useCallback(() => {
     // Lap completion is now tracked via distance/time
@@ -104,22 +107,29 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
 
   // Fetch race data
   useEffect(() => {
-    if (!isConnected || !provider) return;
+    if (!isConnected || !provider || !currentTokenId) return;
 
     const fetchRaceData = async () => {
       try {
         const contract = getRacerNFTContract(provider);
-        const data = await getRaceData(contract);
-        setRaceData(data);
+        const data = await getRaceData(contract, currentTokenId);
+        if (data) {
+          setRaceData((prev) => ({
+            ...prev,
+            [currentTokenId]: data,
+          }));
+        }
       } catch (error) {
-        console.error("Failed to fetch race data:", error);
+        console.error("Error fetching race data:", error);
       }
     };
 
     fetchRaceData();
     const interval = setInterval(fetchRaceData, 5000);
     return () => clearInterval(interval);
-  }, [isConnected, provider]);
+  }, [isConnected, provider, currentTokenId]);
+
+  // Markets data is fetched by MarketsBoard component
 
   // Handle position updates - delegate to race context
   const handlePositionUpdate = useCallback(
@@ -385,15 +395,40 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
             <strong>🤖 Automated Race</strong>
           </p>
           <p>All cars race automatically</p>
-          <p>
-            <strong>📈 Analytics</strong>
-          </p>
-          <p>Check Analytics page for detailed stats & graphs</p>
-          <p>
+          <button
+            onClick={() => setShowMarkets(!showMarkets)}
+            style={{
+              marginTop: "12px",
+              padding: "10px 20px",
+              background: "rgba(34, 197, 94, 0.2)",
+              color: "#22c55e",
+              border: "1px solid rgba(34, 197, 94, 0.5)",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              width: "100%",
+            }}
+          >
+            {showMarkets ? "✕ Hide" : "📈 View"} Markets
+          </button>
+          <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>
             <strong>K</strong> - Toggle Camera
           </p>
         </div>
       </div>
+
+      {/* Markets Board */}
+      {showMarkets && (
+        <MarketsBoard
+          onClose={() => setShowMarkets(false)}
+          provider={provider}
+          signer={signer}
+          account={account}
+          isConnected={isConnected}
+          isFullPage={false}
+        />
+      )}
 
       {/* Live Standings */}
       {isRaceActive && competitors.length > 0 && (
@@ -401,6 +436,11 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
           competitors={competitors}
           raceTime={raceTime}
           raceDuration={raceDuration}
+          provider={provider}
+          signer={signer}
+          account={account}
+          isConnected={isConnected}
+          activeRaceId={activeRaceId}
         />
       )}
 

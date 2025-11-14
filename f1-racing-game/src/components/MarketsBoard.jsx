@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { io } from "socket.io-client";
 import { racingApi } from "../utils/racingApi";
+import { getTradingEngineContract, placeBet } from "../utils/contracts";
+import { LiveStandings } from "./LiveStandings";
 import "./MarketsBoard.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5002";
@@ -47,6 +49,8 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
   const [betAmount, setBetAmount] = useState("0.001");
   const [selectedTokenId, setSelectedTokenId] = useState(null);
   const [isPlacingBet, setIsPlacingBet] = useState(false);
+  const [raceData, setRaceData] = useState(null);
+  const [telemetryData, setTelemetryData] = useState({}); // tokenId -> latest telemetry
   const socketRef = useRef(null);
 
   const refreshMarkets = useCallback(async () => {
@@ -67,6 +71,40 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
     try {
       const market = await racingApi.getMarket(raceId);
       setSelectedMarket(market);
+      
+      // Also fetch race data for live standings
+      try {
+        const race = await racingApi.getRace(raceId);
+        setRaceData(race);
+        
+        // Fetch telemetry for all participants
+        if (race && race.participantTokenIds) {
+          const telemetryPromises = race.participantTokenIds.map(async (tokenId) => {
+            try {
+              const telemetry = await racingApi.getTelemetry(raceId, tokenId, 1);
+              if (telemetry && telemetry.snapshots && telemetry.snapshots.length > 0) {
+                return { tokenId, telemetry: telemetry.snapshots[0] };
+              }
+            } catch (err) {
+              // Ignore errors for individual telemetry fetches
+              console.warn(`Failed to fetch telemetry for token ${tokenId}:`, err);
+            }
+            return null;
+          });
+          
+          const telemetryResults = await Promise.all(telemetryPromises);
+          const telemetryMap = {};
+          telemetryResults.forEach((result) => {
+            if (result && result.telemetry) {
+              telemetryMap[result.tokenId] = result.telemetry;
+            }
+          });
+          setTelemetryData(telemetryMap);
+        }
+      } catch (error) {
+        console.warn("Failed to load race data:", error);
+      }
+      
       // History can be loaded later if needed for charts
       // await racingApi.getMarketHistory(raceId, 200);
     } catch (error) {
@@ -81,8 +119,24 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
   useEffect(() => {
     if (selectedRaceId) {
       loadMarketDetail(selectedRaceId);
+    } else {
+      setRaceData(null);
+      setTelemetryData({});
     }
   }, [selectedRaceId, loadMarketDetail]);
+
+  // Set up polling for active races to update telemetry
+  useEffect(() => {
+    if (!selectedRaceId || !raceData || !raceData.isActive || raceData.isFinished) {
+      return;
+    }
+
+    const pollInterval = setInterval(() => {
+      loadMarketDetail(selectedRaceId);
+    }, 3000); // Update every 3 seconds for active races
+    
+    return () => clearInterval(pollInterval);
+  }, [selectedRaceId, raceData, loadMarketDetail]);
 
   useEffect(() => {
     const socket = io(API_URL, {
@@ -126,18 +180,50 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
 
     setIsPlacingBet(true);
     try {
-      // TODO: Wire to actual contract transaction
-      // For now, show alert
-      alert(`Betting ${betAmount} ETH on Car #${selectedTokenId} in Race #${selectedRaceId}\n\nThis will trigger a MetaMask transaction in the next update.`);
+      // Get the contract instance with signer
+      const tradingEngine = getTradingEngineContract(signer);
+      
+      // Place bet on the contract
+      console.log(`Placing bet: ${betAmount} ETH on Car #${selectedTokenId} in Race #${selectedRaceId}`);
+      const tx = await placeBet(
+        tradingEngine,
+        signer,
+        selectedRaceId,
+        selectedTokenId,
+        amount
+      );
+
+      console.log("Bet transaction confirmed:", tx.hash);
+
+      // Show success message
+      alert(`✅ Bet placed successfully!\n\nAmount: ${betAmount} ETH\nCar: #${selectedTokenId}\nRace: #${selectedRaceId}\nTransaction: ${tx.hash}`);
+
+      // Reset form
       setBetAmount("0.001");
       setSelectedTokenId(null);
+
+      // Refresh market data
+      await refreshMarkets();
+      if (selectedRaceId) {
+        await loadMarketDetail(selectedRaceId);
+      }
     } catch (error) {
       console.error("Bet placement error:", error);
-      alert("Failed to place bet: " + error.message);
+      
+      // Handle specific error cases
+      if (error.message && error.message.includes("user rejected")) {
+        alert("❌ Transaction cancelled by user");
+      } else if (error.message && error.message.includes("insufficient funds")) {
+        alert("❌ Insufficient funds. Please ensure you have enough ETH in your wallet.");
+      } else if (error.message && error.message.includes("not set")) {
+        alert("❌ Contract address not configured. Please set REACT_APP_TRADING_ENGINE_ADDRESS environment variable.");
+      } else {
+        alert("❌ Failed to place bet: " + (error.message || error.toString()));
+      }
     } finally {
       setIsPlacingBet(false);
     }
-  }, [isConnected, signer, selectedRaceId, selectedTokenId, betAmount]);
+  }, [isConnected, signer, selectedRaceId, selectedTokenId, betAmount, refreshMarkets, loadMarketDetail]);
 
   const totalLiquidity = useMemo(() => {
     return markets.reduce((sum, market) => {
@@ -148,6 +234,43 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
   const activeMarkets = useMemo(() => {
     return markets.filter((m) => m.isActive && !m.isFinished);
   }, [markets]);
+
+  // Convert race data to competitors format for LiveStandings component
+  const competitorsForStandings = useMemo(() => {
+    if (!raceData || !raceData.participantTokenIds || raceData.participantTokenIds.length === 0) {
+      return [];
+    }
+
+    const participants = raceData.participantTokenIds.map(tokenId => {
+      const telemetry = telemetryData[tokenId];
+      const isBot = raceData.botTokenIds?.includes(tokenId) || false;
+      
+      // Calculate distance based on lap and lap progress
+      const totalDistance = ((telemetry?.currentLap || 0) * (selectedMarket?.totalLaps || 10) * 100) + 
+                             ((telemetry?.lapProgress || 0) / 100 * (selectedMarket?.totalLaps || 10) * 100);
+      
+      return {
+        tokenId,
+        name: isBot ? `Bot #${tokenId}` : `Car #${tokenId}`,
+        speed: telemetry?.speed || 0,
+        distance: totalDistance,
+        currentLap: telemetry?.currentLap || 0,
+        lapProgress: telemetry?.lapProgress || 0,
+        isBot,
+        isPlayer: !isBot && account, // Assume non-bots are players for now
+      };
+    }).sort((a, b) => {
+      // Sort by lap (descending), then by lap progress (descending), then by speed (descending)
+      if (b.currentLap !== a.currentLap) return b.currentLap - a.currentLap;
+      if (b.lapProgress !== a.lapProgress) return b.lapProgress - a.lapProgress;
+      return (b.speed || 0) - (a.speed || 0);
+    }).map((participant, index) => ({
+      ...participant,
+      position: index + 1,
+    }));
+
+    return participants;
+  }, [raceData, telemetryData, selectedMarket, account]);
 
   return (
     <div className={`markets-board-overlay ${isFullPage ? "full-page" : ""}`}>
@@ -317,6 +440,17 @@ export function MarketsBoard({ onClose, provider, signer, account, isConnected, 
                       <span>{selectedMarket.totalLaps}</span>
                     </div>
                   </div>
+
+                  {/* Live Race Standings */}
+                  {competitorsForStandings.length > 0 && (
+                    <div style={{ marginTop: "24px", marginBottom: "24px" }}>
+                      <LiveStandings
+                        competitors={competitorsForStandings}
+                        raceTime={raceData?.startTime ? Math.floor((Date.now() - raceData.startTime * 1000) / 1000) : 0}
+                        raceDuration={selectedMarket?.totalLaps ? selectedMarket.totalLaps * 60 : 600} // Approximate duration based on laps
+                      />
+                    </div>
+                  )}
 
                   <div className="market-options">
                     <h4>Betting Options</h4>

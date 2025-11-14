@@ -2,22 +2,60 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
+const os = require("os");
 require("dotenv").config();
 
 const racingContract = require("./services/racingContract");
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS configuration - allow all origins in development, specific in production
+const isDevelopment = process.env.NODE_ENV !== "production";
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(",")
+  : isDevelopment
+  ? true // Allow all origins in development
+  : ["http://localhost:3000", "http://localhost:3001"];
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
 });
 
 const DASHBOARD_ROOM = "race-dashboard";
 
-app.use(cors());
+// Multiplayer racing rooms - stores player data by room
+const racingRooms = new Map(); // roomId -> Map(playerId -> playerData)
+
+// Get local network IP addresses
+function getLocalIPs() {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      // Skip internal (loopback) and non-IPv4 addresses
+      if (iface.family === "IPv4" && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips;
+}
+
+// CORS middleware - match Socket.IO CORS settings
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 // Initialize contract listeners
@@ -34,6 +72,22 @@ racingContract
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
+});
+
+// Network diagnostics endpoint
+app.get("/api/network", (req, res) => {
+  const localIPs = getLocalIPs();
+  res.json({
+    port: PORT,
+    host: HOST,
+    localIPs: localIPs,
+    recommendedUrl:
+      localIPs.length > 0 ? `http://${localIPs[0]}:${PORT}` : null,
+    isDevelopment: isDevelopment,
+    cors: {
+      allowedOrigins: allowedOrigins === true ? "all" : allowedOrigins,
+    },
+  });
 });
 
 // Races
@@ -229,9 +283,160 @@ io.on("connection", (socket) => {
       console.error("Failed to emit dashboard snapshot", error);
     }
   });
+
+  // Multiplayer Racing Events
+  socket.on("joinRace", ({ playerId, roomId }) => {
+    if (!playerId || !roomId) {
+      socket.emit("error", { message: "playerId and roomId are required" });
+      return;
+    }
+
+    const roomKey = `race_${roomId}`;
+    socket.join(roomKey);
+
+    // Initialize room if it doesn't exist
+    if (!racingRooms.has(roomId)) {
+      racingRooms.set(roomId, new Map());
+    }
+
+    const room = racingRooms.get(roomId);
+
+    // Add player to room
+    if (!room.has(playerId)) {
+      room.set(playerId, {
+        playerId,
+        position: [0, 0.3, 0],
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        speed: 0,
+        timestamp: Date.now(),
+      });
+
+      // Notify room that player joined
+      socket.to(roomKey).emit("playerJoined", {
+        playerId,
+        position: [0, 0.3, 0],
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+        timestamp: Date.now(),
+      });
+
+      console.log(`Player ${playerId} joined room ${roomId}`);
+    }
+
+    // Send room assignment confirmation
+    socket.emit("roomAssigned", { roomId });
+
+    // Send all current players in the room
+    const players = Array.from(room.values());
+    socket.emit("roomPlayers", { players });
+
+    // Store socket ID for cleanup on disconnect
+    socket.data.playerId = playerId;
+    socket.data.roomId = roomId;
+  });
+
+  socket.on("leaveRace", ({ playerId, roomId }) => {
+    if (!playerId || !roomId) return;
+
+    const roomKey = `race_${roomId}`;
+    socket.leave(roomKey);
+
+    const room = racingRooms.get(roomId);
+    if (room && room.has(playerId)) {
+      room.delete(playerId);
+
+      // Notify room that player left
+      socket.to(roomKey).emit("playerLeft", { playerId });
+
+      console.log(`Player ${playerId} left room ${roomId}`);
+
+      // Clean up empty rooms
+      if (room.size === 0) {
+        racingRooms.delete(roomId);
+      }
+    }
+
+    socket.data.playerId = null;
+    socket.data.roomId = null;
+  });
+
+  socket.on(
+    "playerPositionUpdate",
+    ({ playerId, roomId, position, rotation, speed, timestamp }) => {
+      if (!playerId || !roomId) return;
+
+      const room = racingRooms.get(roomId);
+      if (!room) return;
+
+      // Update player data
+      room.set(playerId, {
+        playerId,
+        position: position || [0, 0.3, 0],
+        rotation: rotation || { x: 0, y: 0, z: 0, w: 1 },
+        speed: speed || 0,
+        timestamp: timestamp || Date.now(),
+      });
+
+      // Broadcast update to all other players in the room
+      const roomKey = `race_${roomId}`;
+      socket.to(roomKey).emit("playerUpdate", {
+        playerId,
+        position,
+        rotation,
+        speed,
+        timestamp,
+      });
+    }
+  );
+
+  // Clean up on disconnect
+  socket.on("disconnect", () => {
+    const { playerId, roomId } = socket.data;
+    if (playerId && roomId) {
+      const room = racingRooms.get(roomId);
+      if (room && room.has(playerId)) {
+        room.delete(playerId);
+        const roomKey = `race_${roomId}`;
+        socket.to(roomKey).emit("playerLeft", { playerId });
+
+        // Clean up empty rooms
+        if (room.size === 0) {
+          racingRooms.delete(roomId);
+        }
+      }
+    }
+  });
 });
 
 const PORT = process.env.PORT || 5002;
-server.listen(PORT, () => {
+const HOST = process.env.HOST || "0.0.0.0"; // Bind to all interfaces
+
+server.listen(PORT, HOST, () => {
   console.log(`🚀 Race backend server running on port ${PORT}`);
+  console.log(`📍 Server accessible at:`);
+  console.log(`   - Local:    http://localhost:${PORT}`);
+  console.log(
+    `   - Network:  http://${
+      HOST === "0.0.0.0" ? getLocalIPs()[0] || "your-ip" : HOST
+    }:${PORT}`
+  );
+
+  const localIPs = getLocalIPs();
+  if (localIPs.length > 0) {
+    console.log(`\n🌐 Network IPs for multiplayer:`);
+    localIPs.forEach((ip) => {
+      console.log(`   - http://${ip}:${PORT}`);
+    });
+    console.log(
+      `\n💡 Frontend clients should connect to: http://${localIPs[0]}:${PORT}`
+    );
+  } else {
+    console.log(
+      `\n⚠️  Could not detect network IP. Check your network settings.`
+    );
+  }
+
+  console.log(`\n🔌 WebSocket server ready for connections`);
+  if (isDevelopment) {
+    console.log(`⚠️  Development mode: CORS allows all origins`);
+  }
 });
