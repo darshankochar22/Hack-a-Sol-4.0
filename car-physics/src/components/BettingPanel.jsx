@@ -33,11 +33,15 @@ export function BettingPanel({
   const {
     bets,
     totalPool,
+    raceEnded,
+    winner,
+    winnings,
     calculateOdds,
     placeBet,
     calculateWinnings,
     getAvailablePlayers,
     getPlayerStats,
+    endRace,
   } = bettingHook;
 
   // Calculate odds (reactive to performance changes)
@@ -79,29 +83,46 @@ export function BettingPanel({
       return;
     }
 
-    if (balance !== null && amount > balance) {
-      alert("Insufficient balance. Please ensure you have enough ETH in your wallet.");
-      return;
-    }
-
     setIsPlacingBet(true);
     try {
-      // For now, we'll use a simple ETH transfer approach
-      // In production, you'd call a smart contract here
-      const tx = await signer.sendTransaction({
-        to: "0x0000000000000000000000000000000000000000", // Placeholder - replace with contract address
-        value: ethers.parseEther(amount.toString()),
-      });
+      let txHash = null;
+      let isSimulated = false;
 
-      // Wait for transaction confirmation
-      await tx.wait();
+      // Check if we have sufficient balance
+      if (balance !== null && amount > balance) {
+        // Fallback: Simulate the bet (for testing/demo purposes)
+        console.log("Insufficient balance - placing simulated bet");
+        isSimulated = true;
+        // Simulate a small delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        // Try to place real transaction
+        try {
+          const tx = await signer.sendTransaction({
+            to: "0x0000000000000000000000000000000000000000", // Placeholder - replace with contract address
+            value: ethers.parseEther(amount.toString()),
+          });
+          await tx.wait();
+          txHash = tx.hash;
+        } catch (txError) {
+          // If transaction fails, fallback to simulated bet
+          if (txError.message && txError.message.includes("insufficient funds")) {
+            console.log("Transaction failed - placing simulated bet instead");
+            isSimulated = true;
+          } else {
+            throw txError; // Re-throw other errors
+          }
+        }
+      }
 
-      // Also record the bet locally
-      const success = placeBet(selectedPlayer, amount);
+      // Record the bet locally (works for both real and simulated)
+      const success = placeBet(selectedPlayer, amount, isSimulated);
       if (success) {
-        alert(
-          `✅ Bet placed successfully!\n\nAmount: ${amount} ETH\nPlayer: ${selectedPlayer.slice(-6)}\nTransaction: ${tx.hash}`
-        );
+        const message = isSimulated
+          ? `✅ Bet placed successfully! (Simulated)\n\nAmount: ${amount} ETH\nPlayer: ${selectedPlayer.slice(-6)}\n\nNote: This is a simulated bet for demo purposes.`
+          : `✅ Bet placed successfully!\n\nAmount: ${amount} ETH\nPlayer: ${selectedPlayer.slice(-6)}\nTransaction: ${txHash}`;
+        
+        alert(message);
         setSelectedPlayer(null);
         setBetAmount(0.001);
       }
@@ -109,8 +130,6 @@ export function BettingPanel({
       console.error("Error placing bet:", error);
       if (error.message && error.message.includes("user rejected")) {
         alert("❌ Transaction cancelled by user");
-      } else if (error.message && error.message.includes("insufficient funds")) {
-        alert("❌ Insufficient funds. Please ensure you have enough ETH in your wallet.");
       } else {
         alert("❌ Failed to place bet: " + (error.message || error.toString()));
       }
@@ -347,6 +366,33 @@ export function BettingPanel({
           ) : (
             /* Betting View */
             <>
+              {/* Race Status */}
+              {raceEnded && winner && (
+                <div
+                  style={{
+                    background: "linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 140, 0, 0.3) 100%)",
+                    border: "2px solid #ffaa00",
+                    borderRadius: "10px",
+                    padding: "15px",
+                    marginBottom: "20px",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: "24px", marginBottom: "10px" }}>🏆</div>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", color: "#ffaa00", marginBottom: "8px" }}>
+                    Race Ended!
+                  </div>
+                  <div style={{ fontSize: "14px", color: "#fff", marginBottom: "10px" }}>
+                    Winner: {winner === playerId ? "YOU" : `Player ${winner.slice(-6)}`}
+                  </div>
+                  {winnings[playerId] && winnings[playerId] > 0 && (
+                    <div style={{ fontSize: "16px", fontWeight: "bold", color: "#00ff00", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.3)" }}>
+                      🎉 You won: {winnings[playerId].toFixed(4)} ETH!
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Pool Info */}
               <div
                 style={{
@@ -405,15 +451,40 @@ export function BettingPanel({
 
               {/* Betting Market View */}
               <div>
-                <h3
+                <div
                   style={{
-                    color: "#00ff00",
-                    fontSize: "16px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginBottom: "15px",
                   }}
                 >
-                  Bet on Players
-                </h3>
+                  <h3
+                    style={{
+                      color: "#00ff00",
+                      fontSize: "16px",
+                      margin: 0,
+                    }}
+                  >
+                    Bet on Players
+                  </h3>
+                  {!raceEnded && (
+                    <button
+                      onClick={endRace}
+                      style={{
+                        background: "rgba(255, 170, 0, 0.2)",
+                        color: "#ffaa00",
+                        border: "1px solid #ffaa00",
+                        borderRadius: "6px",
+                        padding: "6px 12px",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      End Race
+                    </button>
+                  )}
+                </div>
               {availablePlayers.length === 0 ? (
                 <div
                   style={{
@@ -539,12 +610,13 @@ export function BettingPanel({
                             >
                               <input
                                 type="number"
-                                min="1"
-                                step="1"
+                                min="0.001"
+                                step="0.001"
                                 value={betAmount}
                                 onChange={(e) =>
-                                  setBetAmount(parseInt(e.target.value) || 0)
+                                  setBetAmount(parseFloat(e.target.value) || 0)
                                 }
+                                disabled={raceEnded}
                                 style={{
                                   flex: 1,
                                   background: "rgba(0, 0, 0, 0.5)",
@@ -553,8 +625,9 @@ export function BettingPanel({
                                   padding: "8px",
                                   color: "#fff",
                                   fontSize: "14px",
+                                  opacity: raceEnded ? 0.5 : 1,
                                 }}
-                                placeholder="Bet amount"
+                                placeholder="0.001"
                               />
                               <span style={{ color: "#888", fontSize: "12px" }}>
                                 ETH
@@ -586,21 +659,21 @@ export function BettingPanel({
                                 e.stopPropagation();
                                 handlePlaceBet();
                               }}
-                              disabled={!isWalletConnected || isPlacingBet}
+                              disabled={!isWalletConnected || isPlacingBet || raceEnded}
                               style={{
                                 width: "100%",
                                 background:
-                                  isWalletConnected && !isPlacingBet
+                                  isWalletConnected && !isPlacingBet && !raceEnded
                                     ? "#00ff00"
                                     : "rgba(128, 128, 128, 0.5)",
-                                color: isWalletConnected && !isPlacingBet ? "#000" : "#888",
+                                color: isWalletConnected && !isPlacingBet && !raceEnded ? "#000" : "#888",
                                 border: "none",
                                 borderRadius: "6px",
                                 padding: "10px",
                                 fontSize: "14px",
                                 fontWeight: "bold",
                                 cursor:
-                                  isWalletConnected && !isPlacingBet
+                                  isWalletConnected && !isPlacingBet && !raceEnded
                                     ? "pointer"
                                     : "not-allowed",
                                 fontFamily: "monospace",
@@ -609,6 +682,8 @@ export function BettingPanel({
                             >
                               {isPlacingBet
                                 ? "Processing..."
+                                : raceEnded
+                                ? "Race Ended"
                                 : !isWalletConnected
                                 ? "Connect Wallet to Bet"
                                 : `Place Bet (${betAmount} ETH)`}

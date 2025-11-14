@@ -8,9 +8,12 @@ export const useBetting = (
   mySpeed,
   myPosition
 ) => {
-  const [bets, setBets] = useState([]); // Array of { playerId, amount, timestamp }
+  const [bets, setBets] = useState([]); // Array of { playerId, amount, timestamp, isSimulated }
   const [playerPerformance, setPlayerPerformance] = useState({});
   const [totalPool, setTotalPool] = useState(0);
+  const [raceEnded, setRaceEnded] = useState(false);
+  const [winner, setWinner] = useState(null);
+  const [winnings, setWinnings] = useState({}); // playerId -> winnings amount
   const performanceRef = useRef({});
 
   // Update player performance metrics
@@ -109,7 +112,7 @@ export const useBetting = (
 
   // Place a bet on a player (local tracking - actual transaction handled by MetaMask)
   const placeBet = useCallback(
-    (targetPlayerId, amount) => {
+    (targetPlayerId, amount, isSimulated = false) => {
       if (!targetPlayerId || amount <= 0) return false;
       if (targetPlayerId === playerId) {
         alert("You cannot bet on yourself!");
@@ -123,6 +126,7 @@ export const useBetting = (
         amount: amount, // Now in ETH
         timestamp: Date.now(),
         claimed: false,
+        isSimulated: isSimulated,
       };
 
       setBets((prev) => [...prev, newBet]);
@@ -131,6 +135,87 @@ export const useBetting = (
     },
     [playerId]
   );
+
+  // Determine race winner based on performance
+  const determineWinner = useCallback(() => {
+    const performance = playerPerformance;
+    const playerIds = Object.keys(performance);
+
+    if (playerIds.length === 0) return null;
+
+    // Find player with highest performance score
+    let winnerId = null;
+    let maxScore = -1;
+
+    playerIds.forEach((id) => {
+      const perf = performance[id];
+      if (!perf) return;
+
+      // Calculate performance score: prioritize laps, then score, then speed
+      const score =
+        (perf.laps || 0) * 10000 + (perf.score || 0) + (perf.speed || 0) * 0.1;
+
+      if (score > maxScore) {
+        maxScore = score;
+        winnerId = id;
+      }
+    });
+
+    return winnerId;
+  }, [playerPerformance]);
+
+  // End race and calculate winnings
+  const endRace = useCallback(() => {
+    if (raceEnded) return;
+
+    const winnerId = determineWinner();
+    if (!winnerId) return;
+
+    setRaceEnded(true);
+    setWinner(winnerId);
+
+    // Calculate winnings for each player who bet on the winner
+    const winnerBets = bets.filter((bet) => bet.targetPlayerId === winnerId);
+    const totalWinnerBets = winnerBets.reduce(
+      (sum, bet) => sum + bet.amount,
+      0
+    );
+
+    const newWinnings = {};
+
+    if (totalWinnerBets > 0 && totalPool > 0) {
+      // Distribute pool proportionally to winners
+      winnerBets.forEach((bet) => {
+        const share = (bet.amount / totalWinnerBets) * totalPool;
+        newWinnings[bet.playerId] = (newWinnings[bet.playerId] || 0) + share;
+      });
+    }
+
+    setWinnings(newWinnings);
+    return { winnerId, winnings: newWinnings };
+  }, [bets, totalPool, determineWinner, raceEnded]);
+
+  // Check if race should end (e.g., after 10 laps or time limit)
+  useEffect(() => {
+    const performance = playerPerformance;
+    const playerIds = Object.keys(performance);
+
+    if (playerIds.length === 0 || raceEnded) return;
+
+    // End race if any player reaches 10 laps
+    const shouldEnd = playerIds.some((id) => {
+      const perf = performance[id];
+      return perf && perf.laps >= 10;
+    });
+
+    if (shouldEnd && !raceEnded) {
+      const result = endRace();
+      if (result) {
+        console.log("🏁 Race ended! Winner:", result.winnerId);
+        console.log("💰 Winnings distributed:", result.winnings);
+      }
+    }
+  }, [playerPerformance, raceEnded, endRace]);
 
   // Calculate potential winnings for a bet
   const calculateWinnings = useCallback(
@@ -171,10 +256,15 @@ export const useBetting = (
     bets,
     playerPerformance,
     totalPool,
+    raceEnded,
+    winner,
+    winnings,
     calculateOdds,
     placeBet,
     calculateWinnings,
     getAvailablePlayers,
     getPlayerStats,
+    determineWinner,
+    endRace,
   };
 };
