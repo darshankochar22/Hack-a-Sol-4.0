@@ -1,10 +1,10 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Canvas, useLoader } from "@react-three/fiber"
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Canvas, useFrame, useLoader } from "@react-three/fiber"
 import { Environment, MeshReflectorMaterial, OrbitControls, PerspectiveCamera } from "@react-three/drei"
-import { Physics, useBox, useCompoundBody, usePlane, useRaycastVehicle, useTrimesh } from "@react-three/cannon"
-import { BufferAttribute, TextureLoader, type Group, type Mesh, type Object3D } from "three"
+import { Physics, useBox, usePlane, useTrimesh } from "@react-three/cannon"
+import { BufferAttribute, CatmullRomCurve3, Quaternion, TextureLoader, Vector3, Mesh, type Group, type PerspectiveCamera as ThreePerspectiveCamera } from "three"
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader"
 
 const ASSET_BASE = "/r3f"
@@ -42,20 +42,25 @@ export default function F1InteractiveStage({ raceStarted, onRaceEnd }: StageProp
 }
 
 function Scene({ raceStarted, onRaceEnd }: StageProps) {
+  const cameraRef = useRef<ThreePerspectiveCamera>(null)
+  const controlsRef = useRef<any>(null)
+
   return (
     <>
-      <Environment files={`${TEXTURE_BASE}/envmap.hdr`} background="both" />
-      <PerspectiveCamera makeDefault position={[-6, 3.9, 6.21]} fov={40} />
+      <Environment files={`${TEXTURE_BASE}/envmap.hdr`} background />
+      <PerspectiveCamera makeDefault ref={cameraRef} position={[-6, 3.9, 6.21]} fov={40} />
       <OrbitControls
+        ref={controlsRef}
         target={[-2.64, -0.71, 0.03]}
         enablePan={false}
         maxDistance={12}
         enableDamping
         dampingFactor={0.05}
+        enabled={!raceStarted}
       />
       <Track />
       <Ground />
-      <Car raceStarted={raceStarted} onRaceEnd={onRaceEnd} />
+      <Car raceStarted={raceStarted} onRaceEnd={onRaceEnd} cameraRef={cameraRef} controlsRef={controlsRef} />
     </>
   )
 }
@@ -63,104 +68,338 @@ function Scene({ raceStarted, onRaceEnd }: StageProps) {
 type CarProps = {
   raceStarted: boolean
   onRaceEnd?: () => void
+  cameraRef: React.RefObject<ThreePerspectiveCamera>
+  controlsRef: React.RefObject<any>
 }
 
-function Car({ raceStarted, onRaceEnd }: CarProps) {
-  const gltf = useLoader<GLTF>(GLTFLoader, `${MODEL_BASE}/car.glb`)
-  const carScene = useMemo(() => gltf.scene.clone() as Group, [gltf])
+function Car({ raceStarted, onRaceEnd, cameraRef, controlsRef }: CarProps) {
+  const gltf = useLoader(GLTFLoader, "/car_3d/scene.gltf") as GLTF
+  const carRef = useRef<Group>(null)
 
-  const position: [number, number, number] = [-1.5, 0.5, 3]
-  const width = 0.15
-  const height = 0.07
-  const front = 0.15
-  const wheelRadius = 0.05
+  const carScene = useMemo(() => {
+    const cloned = gltf.scene.clone()
+    // Dramatically increased scale - from 0.01 to 8.0 for maximum visibility
+    // This is an 800x increase from the original scale
+    cloned.scale.set(8.0, 8.0, 8.0)
+    // Adjusted Y position to account for larger scale - car should sit on track
+    // Track is at Y=0, so we need to adjust based on car's bottom pivot
+    cloned.position.set(0, -0.2, 0)
+    return cloned
+  }, [gltf])
 
-  const chassisBodyArgs: [number, number, number] = [width, height, front * 2]
-  const [chassisBody, chassisApi] = useBox(
-    () => ({
-      args: chassisBodyArgs,
-      mass: 150,
-      position,
-    }),
-    useRef(null),
+  // Precise path traced from track collider positions
+  // Following the black track centerline based on actual collider layout
+  const pathPoints = useMemo(
+    () =>
+      [
+        // START/FINISH LINE - Pit area between colliders [-1.85, 0, 0.385] and [-1.85, 0, -0.385]
+        // Center point: X=-2.065 (between -1.85 and -2.28 colliders), Z=0
+        [-2.065, 0.35, 0.0],
+        
+        // Turn 1 - Exit pit area, entering first turn
+        // Between colliders [-0.83, 0, 3.2] and [0.41, 0, 2]
+        [-1.4, 0.35, 0.6],
+        [-0.8, 0.35, 1.4],
+        [-0.4, 0.35, 2.2],
+        [-0.21, 0.35, 2.6], // Midpoint between colliders
+        
+        // Straight section - between [0.41, 0, 2] and [1.75, 0, 0.5]
+        [0.35, 0.35, 2.3],
+        [1.08, 0.35, 1.75],
+        [1.7, 0.35, 1.0],
+        
+        // Turn 2 - Entry near collider [2.5, 0, -1.4]
+        [2.0, 0.35, 0.3],
+        [2.25, 0.35, -0.45],
+        [2.35, 0.35, -1.0],
+        
+        // Back straight - towards [0.6, 0, -3.8]
+        [2.15, 0.35, -1.9],
+        [1.675, 0.35, -2.85], // Midpoint: (1.75+0.6)/2 = 1.175, but adjusted for curve
+        [1.1, 0.35, -3.5],
+        [0.6, 0.35, -3.8],
+        
+        // Turn 3 - Tight section near [-1.95, 0, -5.18]
+        [0.0, 0.35, -4.4],
+        [-0.975, 0.35, -4.99], // Midpoint before collider
+        [-1.95, 0.35, -5.18],
+        
+        // Turn 4 - Long sweeper towards [-5.55, 0, -3.05]
+        [-3.25, 0.35, -4.7],
+        [-4.4, 0.35, -4.0],
+        [-4.975, 0.35, -3.4],
+        [-5.55, 0.35, -3.05],
+        
+        // Turn 5 - Section near [-4.4, 0, -1.77] and [-7.03, 0, -0.76]
+        [-5.7, 0.35, -2.5],
+        [-6.25, 0.35, -1.6],
+        [-6.515, 0.35, -1.265], // Between colliders
+        [-6.7, 0.35, -0.76],
+        
+        // Turn 6 - Final section leading to finish
+        // Between colliders [-4.75, 0, 2.73] and [-3.05, 0, 3.4]
+        [-6.4, 0.35, 0.0],
+        [-6.0, 0.35, 0.8],
+        [-5.4, 0.35, 1.6],
+        [-5.0, 0.35, 2.365], // Midpoint: (-4.75 + -5.25)/2 = -5.0, Z: (2.73 + 2.0)/2 = 2.365
+        [-4.4, 0.35, 3.065], // Midpoint: (-4.75 + -4.05)/2 = -4.4, Z: (2.73 + 3.4)/2 = 3.065
+        [-3.9, 0.35, 3.065],
+        [-3.05, 0.35, 3.4],
+        
+        // Final turn - Return to start/finish
+        [-2.5, 0.35, 2.9],
+        [-2.3, 0.35, 1.8],
+        [-2.2, 0.35, 0.9],
+        [-2.15, 0.35, 0.4],
+        
+        // Return to START/FINISH LINE (close the loop)
+        [-2.065, 0.35, 0.0],
+      ].map(([x, y, z]) => new Vector3(x, y, z)),
+    [],
   )
 
-  const [wheels, wheelInfos] = useWheels(width, height, front, wheelRadius)
+  const curve = useMemo(() => new CatmullRomCurve3(pathPoints, true, "catmullrom", 0.5), [pathPoints])
+  const forward = useMemo(() => new Vector3(0, 0, 1), [])
+  const tangent = useMemo(() => new Vector3(), [])
+  const targetQuat = useMemo(() => new Quaternion(), [])
 
-  const [vehicle, vehicleApi] = useRaycastVehicle(
-    () => ({
-      chassisBody,
-      wheelInfos,
-      wheels,
-    }),
-    useRef(null),
-  )
-
-  useControls(vehicleApi, chassisApi)
+  const progressRef = useRef(0)
+  const activeRef = useRef(false)
+  const duration = 30 // seconds per lap - slow movement for smooth viewing
+  const simulationStartTimeRef = useRef<number | null>(null)
+  const cameraTargetPosRef = useRef<Vector3>(new Vector3())
+  const cameraTargetLookRef = useRef<Vector3>(new Vector3())
+  
+  // Camera animation state
+  const cameraStateRef = useRef<'intro' | 'following' | 'side' | 'aerial' | 'finish'>('intro')
+  const cameraTransitionTimeRef = useRef(0)
 
   useEffect(() => {
-    carScene.scale.set(0.0012, 0.0012, 0.0012)
-    if (carScene.children[0]) {
-      carScene.children[0].position.set(-365, -18, -67)
+    if (raceStarted) {
+      progressRef.current = 0
+      activeRef.current = true
+      simulationStartTimeRef.current = null
+      cameraStateRef.current = 'intro'
+      cameraTransitionTimeRef.current = 0
+      
+      if (carRef.current) {
+        const startPoint = curve.getPointAt(0)
+        carRef.current.position.copy(startPoint)
+        // Reset car rotation to face the track direction
+        const initialDir = curve.getTangentAt(0, tangent).normalize()
+        targetQuat.setFromUnitVectors(forward, initialDir)
+        carRef.current.quaternion.copy(targetQuat)
+      }
+      
+      // Initialize camera targets for smooth start
+      if (cameraRef.current && carRef.current) {
+        const startPoint = curve.getPointAt(0)
+        const startPos = new Vector3(startPoint.x - 7, startPoint.y + 6, startPoint.z + 7)
+        cameraTargetPosRef.current.copy(startPos)
+        cameraRef.current.position.copy(startPos)
+        cameraTargetLookRef.current.copy(new Vector3(startPoint.x, startPoint.y + 1.0, startPoint.z))
+      }
+      
+      // Disable orbit controls during race
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false
+      }
+    } else {
+      activeRef.current = false
+      simulationStartTimeRef.current = null
+      
+      if (carRef.current) {
+        const startPoint = curve.getPointAt(0)
+        carRef.current.position.copy(startPoint)
+      }
+      
+      // Re-enable orbit controls
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+      
+      // Reset camera to initial position
+      if (cameraRef.current) {
+        cameraRef.current.position.set(-6, 3.9, 6.21)
+        cameraRef.current.lookAt(-2.64, -0.71, 0.03)
+      }
+    }
+  }, [curve, raceStarted, tangent, targetQuat, forward])
+
+  useFrame((_, delta) => {
+    if (!carRef.current || !cameraRef.current) return
+
+    if (!activeRef.current) return
+
+    // Initialize simulation start time
+    if (simulationStartTimeRef.current === null) {
+      simulationStartTimeRef.current = 0
+    }
+    simulationStartTimeRef.current += delta
+    cameraTransitionTimeRef.current += delta
+
+    // Update car progress
+    progressRef.current += delta / duration
+    
+    const progress = progressRef.current % 1
+    const point = curve.getPointAt(progress)
+    const dir = curve.getTangentAt(progress, tangent).normalize()
+
+    // Update car position with smooth lerp for stable movement
+    carRef.current.position.lerp(point, 0.2)
+    
+    // Update car rotation with smooth slerp for stable turning
+    targetQuat.setFromUnitVectors(forward, dir)
+    carRef.current.quaternion.slerp(targetQuat, 0.4)
+
+    // Camera animation system
+    const elapsedTime = simulationStartTimeRef.current
+    const time = elapsedTime
+
+    // STABLE camera system - smooth transitions, car always visible
+    // Calculate car look position (car center with height offset)
+    const carLookPos = new Vector3(point.x, point.y + 1.0, point.z)
+    cameraTargetLookRef.current.lerp(carLookPos, 0.1)
+    
+    // Phase 1: Initial zoom (0-3 seconds)
+    if (time < 3) {
+      cameraStateRef.current = 'intro'
+      const t = time / 3
+      const easeT = 1 - Math.pow(1 - t, 2) // Smooth ease out
+      
+      const startPos = new Vector3(point.x - 7, point.y + 6, point.z + 7)
+      const targetPos = new Vector3(point.x - 4, point.y + 3.5, point.z + 4.5)
+      
+      cameraTargetPosRef.current.lerpVectors(startPos, targetPos, easeT)
+      cameraRef.current.position.lerp(cameraTargetPosRef.current, 0.1)
+      cameraRef.current.lookAt(cameraTargetLookRef.current)
+      cameraRef.current.fov = 45 + (30 - 45) * easeT
+      cameraRef.current.updateProjectionMatrix()
+    }
+    // Phase 2: Stable following camera (3-20 seconds) - most of the lap
+    else if (time < 20) {
+      cameraStateRef.current = 'following'
+      
+      // Stable following position behind car
+      const behindOffset = new Vector3(0, 3.5, 5.5)
+      behindOffset.applyQuaternion(carRef.current.quaternion)
+      const targetPos = point.clone().add(behindOffset)
+      
+      cameraTargetPosRef.current.lerp(targetPos, 0.05)
+      cameraRef.current.position.lerp(cameraTargetPosRef.current, 0.08)
+      cameraRef.current.lookAt(cameraTargetLookRef.current)
+      cameraRef.current.fov = 42
+      cameraRef.current.updateProjectionMatrix()
+    }
+    // Phase 3: Stable side view (20-26 seconds)
+    else if (time < 26) {
+      cameraStateRef.current = 'side'
+      
+      // Stable side view - perpendicular to car direction
+      const rightSide = new Vector3(-dir.z, 0, dir.x).normalize()
+      const sideOffset = rightSide.clone().multiplyScalar(-5)
+      const heightOffset = new Vector3(0, 2.8, 0)
+      const forwardOffset = dir.clone().multiplyScalar(1.5)
+      
+      const targetPos = point.clone()
+        .add(sideOffset)
+        .add(heightOffset)
+        .add(forwardOffset)
+      
+      cameraTargetPosRef.current.lerp(targetPos, 0.04)
+      cameraRef.current.position.lerp(cameraTargetPosRef.current, 0.08)
+      
+      // Look ahead along track
+      const lookAhead = point.clone().add(dir.clone().multiplyScalar(4))
+      const lookTarget = new Vector3(lookAhead.x, lookAhead.y + 1.0, lookAhead.z)
+      cameraTargetLookRef.current.lerp(lookTarget, 0.1)
+      cameraRef.current.lookAt(cameraTargetLookRef.current)
+      cameraRef.current.fov = 48
+      cameraRef.current.updateProjectionMatrix()
+    }
+    // Phase 4: Stable aerial view (26-28 seconds)
+    else if (time < 28) {
+      cameraStateRef.current = 'aerial'
+      
+      // Stable aerial view above and ahead of car
+      const forwardOffset = dir.clone().multiplyScalar(3)
+      const rightOffset = new Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(2)
+      const aerialPos = point.clone()
+        .add(new Vector3(0, 7.5, 0))
+        .add(forwardOffset)
+        .add(rightOffset)
+      
+      cameraTargetPosRef.current.lerp(aerialPos, 0.03)
+      cameraRef.current.position.lerp(cameraTargetPosRef.current, 0.08)
+      cameraRef.current.lookAt(cameraTargetLookRef.current)
+      cameraRef.current.fov = 52
+      cameraRef.current.updateProjectionMatrix()
+    }
+    // Phase 5: Finish line view (28-30 seconds)
+    else {
+      cameraStateRef.current = 'finish'
+      const t = (time - 28) / 2
+      const easeT = 1 - Math.pow(1 - t, 2)
+      
+      // Return to following view for finish
+      const behindOffset = new Vector3(0, 3, 4)
+      behindOffset.applyQuaternion(carRef.current.quaternion)
+      const targetPos = point.clone().add(behindOffset)
+      
+      cameraTargetPosRef.current.lerp(targetPos, 0.08)
+      cameraRef.current.position.lerp(cameraTargetPosRef.current, 0.1)
+      cameraRef.current.lookAt(cameraTargetLookRef.current)
+      cameraRef.current.fov = 42 - (7 * easeT)
+      cameraRef.current.updateProjectionMatrix()
+    }
+
+    // Check if race is complete - ensure smooth round completion
+    if (progressRef.current >= 1.0) {
+      // Ensure car reaches exactly the start position
+      if (carRef.current) {
+        const finalPoint = curve.getPointAt(0)
+        carRef.current.position.lerp(finalPoint, 0.3)
+        const finalDir = curve.getTangentAt(0, tangent).normalize()
+        const finalQuat = new Quaternion()
+        finalQuat.setFromUnitVectors(forward, finalDir)
+        carRef.current.quaternion.slerp(finalQuat, 0.4)
+      }
+      
+      progressRef.current = 1.0
+      activeRef.current = false
+      
+      // Small delay before calling onRaceEnd for smooth transition
+      setTimeout(() => {
+        onRaceEnd?.()
+      }, 800)
+    }
+  })
+
+  // Ensure car is visible by making sure materials are properly set
+  useEffect(() => {
+    if (carScene) {
+      carScene.traverse((child: any) => {
+        if (child instanceof Mesh) {
+          // Ensure the car is visible
+          child.visible = true
+          if (child.material) {
+            // Make sure materials are not transparent
+            if (Array.isArray(child.material)) {
+              child.material.forEach((mat: any) => {
+                mat.transparent = false
+              })
+            } else {
+              (child.material as any).transparent = false
+            }
+          }
+        }
+      })
     }
   }, [carScene])
 
-  const stopVehicle = useCallback(() => {
-    for (let i = 0; i < 4; i += 1) {
-      vehicleApi.applyEngineForce(0, i)
-      vehicleApi.setBrake(2, i)
-    }
-  }, [vehicleApi])
-
-  const raceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    if (!raceStarted) {
-      stopVehicle()
-      if (raceTimer.current) {
-        clearTimeout(raceTimer.current)
-        raceTimer.current = null
-      }
-      return
-    }
-
-    chassisApi.position.set(...position)
-    chassisApi.velocity.set(0, 0, 0)
-    chassisApi.angularVelocity.set(0, 0, 0)
-
-    for (let i = 0; i < 4; i += 1) {
-      vehicleApi.setBrake(0, i)
-    }
-
-    vehicleApi.applyEngineForce(200, 2)
-    vehicleApi.applyEngineForce(200, 3)
-
-    raceTimer.current = setTimeout(() => {
-      stopVehicle()
-      onRaceEnd?.()
-      raceTimer.current = null
-    }, 9000)
-
-    return () => {
-      stopVehicle()
-      if (raceTimer.current) {
-        clearTimeout(raceTimer.current)
-        raceTimer.current = null
-      }
-    }
-  }, [raceStarted, chassisApi, onRaceEnd, position, stopVehicle, vehicleApi])
-
   return (
-    <group ref={vehicle} name="vehicle" dispose={null}>
-      <primitive object={carScene} rotation-y={Math.PI} position={[0, -0.09, 0]} />
-      {gltf?.scene && <primitive object={gltf.scene} />}
-      <mesh ref={chassisBody}>
-        <meshBasicMaterial transparent opacity={0} />
-        <boxGeometry args={chassisBodyArgs} />
-      </mesh>
-      {wheels.map((wheelRef, idx) => (
-        <WheelDebug key={idx} wheelRef={wheelRef} radius={wheelRadius} />
-      ))}
+    <group ref={carRef} dispose={null}>
+      <primitive object={carScene} />
     </group>
   )
 }
@@ -238,9 +477,11 @@ function Ground() {
           minDepthThreshold={0.9}
           maxDepthThreshold={1}
           depthToBlurRatioBias={0.25}
-          debug={0}
           reflectorOffset={0.02}
         />
+      </mesh>
+      <mesh ref={planeRef} visible={false}>
+        <planeGeometry args={[1, 1]} />
       </mesh>
     </>
   )
@@ -332,138 +573,5 @@ function ColliderBox({ position, scale }: { position: [number, number, number]; 
   }))
 
   return null
-}
-
-function WheelDebug({ wheelRef, radius }: { wheelRef: React.RefObject<Object3D>; radius: number }) {
-  const debug = false
-  if (!debug) return null
-
-  return (
-    <group ref={wheelRef}>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[radius, radius, 0.015, 16]} />
-        <meshNormalMaterial transparent opacity={0.25} />
-      </mesh>
-    </group>
-  )
-}
-
-function useWheels(width: number, height: number, front: number, radius: number) {
-  const wheels = [useRef<Object3D>(null), useRef<Object3D>(null), useRef<Object3D>(null), useRef<Object3D>(null)]
-
-  const wheelInfo = {
-    radius,
-    directionLocal: [0, -1, 0] as [number, number, number],
-    axleLocal: [1, 0, 0] as [number, number, number],
-    suspensionStiffness: 60,
-    suspensionRestLength: 0.1,
-    frictionSlip: 5,
-    dampingRelaxation: 2.3,
-    dampingCompression: 4.4,
-    maxSuspensionForce: 100000,
-    rollInfluence: 0.01,
-    maxSuspensionTravel: 0.1,
-    customSlidingRotationalSpeed: -30,
-    useCustomSlidingRotationalSpeed: true,
-  }
-
-  const wheelInfos = [
-    {
-      ...wheelInfo,
-      chassisConnectionPointLocal: [-width * 0.65, height * 0.4, front] as [number, number, number],
-      isFrontWheel: true,
-    },
-    {
-      ...wheelInfo,
-      chassisConnectionPointLocal: [width * 0.65, height * 0.4, front] as [number, number, number],
-      isFrontWheel: true,
-    },
-    {
-      ...wheelInfo,
-      chassisConnectionPointLocal: [-width * 0.65, height * 0.4, -front] as [number, number, number],
-      isFrontWheel: false,
-    },
-    {
-      ...wheelInfo,
-      chassisConnectionPointLocal: [width * 0.65, height * 0.4, -front] as [number, number, number],
-      isFrontWheel: false,
-    },
-  ]
-
-  const propsFunc = () => ({
-    collisionFilterGroup: 0,
-    mass: 1,
-    shapes: [
-      {
-        args: [wheelInfo.radius, wheelInfo.radius, 0.015, 16],
-        rotation: [0, 0, -Math.PI / 2] as [number, number, number],
-        type: "Cylinder" as const,
-      },
-    ],
-    type: "Kinematic" as const,
-  })
-
-  useCompoundBody(propsFunc, wheels[0])
-  useCompoundBody(propsFunc, wheels[1])
-  useCompoundBody(propsFunc, wheels[2])
-  useCompoundBody(propsFunc, wheels[3])
-
-  return [wheels, wheelInfos] as const
-}
-
-function useControls(vehicleApi: any, chassisApi: any) {
-  const [controls, setControls] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    const keyDownPressHandler = (e: KeyboardEvent) => {
-      setControls((prev) => ({
-        ...prev,
-        [e.key.toLowerCase()]: true,
-      }))
-    }
-
-    const keyUpPressHandler = (e: KeyboardEvent) => {
-      setControls((prev) => ({
-        ...prev,
-        [e.key.toLowerCase()]: false,
-      }))
-    }
-
-    window.addEventListener("keydown", keyDownPressHandler)
-    window.addEventListener("keyup", keyUpPressHandler)
-    return () => {
-      window.removeEventListener("keydown", keyDownPressHandler)
-      window.removeEventListener("keyup", keyUpPressHandler)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (controls.w) {
-      vehicleApi.applyEngineForce(150, 2)
-      vehicleApi.applyEngineForce(150, 3)
-    } else if (controls.s) {
-      vehicleApi.applyEngineForce(-150, 2)
-      vehicleApi.applyEngineForce(-150, 3)
-    } else {
-      vehicleApi.applyEngineForce(0, 2)
-      vehicleApi.applyEngineForce(0, 3)
-    }
-
-    if (controls.a) {
-      vehicleApi.setSteeringValue(0.35, 2)
-      vehicleApi.setSteeringValue(0.35, 3)
-      vehicleApi.setSteeringValue(-0.1, 0)
-      vehicleApi.setSteeringValue(-0.1, 1)
-    } else if (controls.d) {
-      vehicleApi.setSteeringValue(-0.35, 2)
-      vehicleApi.setSteeringValue(-0.35, 3)
-      vehicleApi.setSteeringValue(0.1, 0)
-      vehicleApi.setSteeringValue(0.1, 1)
-    } else {
-      for (let i = 0; i < 4; i++) {
-        vehicleApi.setSteeringValue(0, i)
-      }
-    }
-  }, [controls, vehicleApi, chassisApi])
 }
 
