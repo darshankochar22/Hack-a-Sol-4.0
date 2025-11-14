@@ -67,12 +67,32 @@ export default function F1CarFeaturesDashboard() {
   const [allDriversPositions, setAllDriversPositions] = useState<Record<number, Position | null>>({})
   const [allDriversLapHistory, setAllDriversLapHistory] = useState<Record<number, Lap[]>>({})
 
-  // Car cards data with real F1 car names
+  // Car cards data with real F1 car names and their corresponding GLB models
   const carCards = [
-    { title: "Mercedes-AMG F1 W15", src: (car1 as { src: string }).src || String(car1), driverAcronyms: ["HAM", "RUS"] },
-    { title: "Oracle Red Bull Racing RB20", src: (car2 as { src: string }).src || String(car2), driverAcronyms: ["VER", "PER"] },
-    { title: "Scuderia Ferrari SF-24", src: (car3 as { src: string }).src || String(car3), driverAcronyms: ["LEC", "SAI"] },
-    { title: "McLaren F1 Team MCL38", src: (car4 as { src: string }).src || String(car4), driverAcronyms: ["NOR", "PIA"] },
+    { 
+      title: "Mercedes-AMG F1 W15", 
+      src: (car1 as { src: string }).src || String(car1), 
+      driverAcronyms: ["HAM", "RUS"],
+      glbPath: "/assets/f1-car3-yello_black.glb" // Image 1 -> f1_car_yello_black
+    },
+    { 
+      title: "Oracle Red Bull Racing RB20", 
+      src: (car2 as { src: string }).src || String(car2), 
+      driverAcronyms: ["VER", "PER"],
+      glbPath: "/assets/f1-car.glb" // Image 2 -> f1_car
+    },
+    { 
+      title: "Scuderia Ferrari SF-24", 
+      src: (car3 as { src: string }).src || String(car3), 
+      driverAcronyms: ["LEC", "SAI"],
+      glbPath: "/assets/f1-car3_blue_black.glb" // Image 3 -> f1_car_blue_black
+    },
+    { 
+      title: "McLaren F1 Team MCL38", 
+      src: (car4 as { src: string }).src || String(car4), 
+      driverAcronyms: ["NOR", "PIA"],
+      glbPath: "/assets/f1-car2.glb" // Image 4 -> f1_car_2
+    },
   ]
 
   const [hoveredCardIndex, setHoveredCardIndex] = useState<number | null>(null)
@@ -601,6 +621,7 @@ export default function F1CarFeaturesDashboard() {
                 speed={selectedMetrics.speed.value}
                 rpm={selectedMetrics.rpm.value}
                 throttle={selectedMetrics.throttle.value}
+                carModelPath={selectedCar.glbPath}
               />
             </motion.div>
 
@@ -656,7 +677,7 @@ export default function F1CarFeaturesDashboard() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="mb-16 p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm"
+              className="mb-16 p-6 md:p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm w-full"
             >
               <h2
                 className="text-2xl md:text-3xl font-bold text-white mb-6 uppercase tracking-wider"
@@ -664,38 +685,40 @@ export default function F1CarFeaturesDashboard() {
               >
                 Speed & RPM Over Time
               </h2>
-              <ChartContainer
-                config={{
-                  speed: { label: "Speed (km/h)", color: "#FF0000" },
-                  rpm: { label: "RPM (x100)", color: "#FF6B35" },
-                }}
-                className="h-96"
-              >
-                <LineChart data={speedChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" stroke="#888" />
-                  <YAxis yAxisId="left" stroke="#FF0000" />
-                  <YAxis yAxisId="right" orientation="right" stroke="#FF6B35" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Line 
-                    yAxisId="left"
-                    type="monotone" 
-                    dataKey="speed" 
-                    stroke="#FF0000" 
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line 
-                    yAxisId="right"
-                    type="monotone" 
-                    dataKey="rpm" 
-                    stroke="#FF6B35" 
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ChartContainer>
+              <div className="w-full h-[500px] min-h-[400px]">
+                <ChartContainer
+                  config={{
+                    speed: { label: "Speed (km/h)", color: "#FF0000" },
+                    rpm: { label: "RPM (x100)", color: "#FF6B35" },
+                  }}
+                  className="w-full h-full"
+                >
+                  <LineChart data={speedChartData} width={undefined} height={undefined}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="time" stroke="#888" />
+                    <YAxis yAxisId="left" stroke="#FF0000" />
+                    <YAxis yAxisId="right" orientation="right" stroke="#FF6B35" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Line 
+                      yAxisId="left"
+                      type="monotone" 
+                      dataKey="speed" 
+                      stroke="#FF0000" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line 
+                      yAxisId="right"
+                      type="monotone" 
+                      dataKey="rpm" 
+                      stroke="#FF6B35" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
             </motion.div>
 
             {/* Lap Times Graph */}
@@ -704,7 +727,7 @@ export default function F1CarFeaturesDashboard() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8, delay: 0.3 }}
-              className="mb-16 p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm"
+              className="mb-16 p-6 md:p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm w-full"
             >
               <h2
                 className="text-2xl md:text-3xl font-bold text-white mb-6 uppercase tracking-wider"
@@ -712,27 +735,29 @@ export default function F1CarFeaturesDashboard() {
               >
                 Lap Times Analysis
               </h2>
-              <ChartContainer
-                config={{
-                  duration: { label: "Lap Time (s)", color: "#FF0000" },
-                  sector1: { label: "Sector 1 (s)", color: "#00FF88" },
-                  sector2: { label: "Sector 2 (s)", color: "#FF6B35" },
-                  sector3: { label: "Sector 3 (s)", color: "#0066FF" },
-                }}
-                className="h-96"
-              >
-                <AreaChart data={lapTimeChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="lap" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <ChartLegend content={<ChartLegendContent />} />
-                  <Area type="monotone" dataKey="duration" stackId="1" stroke="#FF0000" fill="#FF0000" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="sector1" stackId="2" stroke="#00FF88" fill="#00FF88" fillOpacity={0.4} />
-                  <Area type="monotone" dataKey="sector2" stackId="2" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.4} />
-                  <Area type="monotone" dataKey="sector3" stackId="2" stroke="#0066FF" fill="#0066FF" fillOpacity={0.4} />
-                </AreaChart>
-              </ChartContainer>
+              <div className="w-full h-[500px] min-h-[400px]">
+                <ChartContainer
+                  config={{
+                    duration: { label: "Lap Time (s)", color: "#FF0000" },
+                    sector1: { label: "Sector 1 (s)", color: "#00FF88" },
+                    sector2: { label: "Sector 2 (s)", color: "#FF6B35" },
+                    sector3: { label: "Sector 3 (s)", color: "#0066FF" },
+                  }}
+                  className="w-full h-full"
+                >
+                  <AreaChart data={lapTimeChartData} width={undefined} height={undefined}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="lap" stroke="#888" />
+                    <YAxis stroke="#888" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Area type="monotone" dataKey="duration" stackId="1" stroke="#FF0000" fill="#FF0000" fillOpacity={0.6} />
+                    <Area type="monotone" dataKey="sector1" stackId="2" stroke="#00FF88" fill="#00FF88" fillOpacity={0.4} />
+                    <Area type="monotone" dataKey="sector2" stackId="2" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.4} />
+                    <Area type="monotone" dataKey="sector3" stackId="2" stroke="#0066FF" fill="#0066FF" fillOpacity={0.4} />
+                  </AreaChart>
+                </ChartContainer>
+              </div>
             </motion.div>
 
             {/* Tire Temperature Heatmap */}
@@ -741,7 +766,7 @@ export default function F1CarFeaturesDashboard() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="mb-16 p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm"
+              className="mb-16 p-6 md:p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm w-full"
             >
               <h2
                 className="text-2xl md:text-3xl font-bold text-white mb-6 uppercase tracking-wider"
@@ -749,75 +774,88 @@ export default function F1CarFeaturesDashboard() {
               >
                 Tire Temperature Heatmap
               </h2>
-              <div className="flex flex-col gap-2">
-                {tireHeatmap.map((row, rowIndex) => (
-                  <div key={rowIndex} className="flex gap-2 justify-center">
-                    {row.map((value, colIndex) => (
-                      <motion.div
-                        key={colIndex}
-                        initial={{ opacity: 0, scale: 0 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: (rowIndex + colIndex) * 0.05 }}
-                        className={`w-16 h-16 ${getHeatmapColor(value, 100)} rounded-sm border border-black/50 flex items-center justify-center text-white font-bold text-xs transition-all duration-300 hover:scale-110`}
-                      >
-                        {Math.round(value)}°C
-                      </motion.div>
-                    ))}
-                  </div>
-                ))}
+              <div className="w-full flex justify-center items-center">
+                <div className="flex flex-col gap-2 md:gap-3 w-full max-w-4xl">
+                  {tireHeatmap.map((row, rowIndex) => (
+                    <div key={rowIndex} className="flex gap-2 md:gap-3 justify-center w-full">
+                      {row.map((value, colIndex) => (
+                        <motion.div
+                          key={colIndex}
+                          initial={{ opacity: 0, scale: 0 }}
+                          whileInView={{ opacity: 1, scale: 1 }}
+                          viewport={{ once: true }}
+                          transition={{ delay: (rowIndex + colIndex) * 0.05 }}
+                          className={`w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 ${getHeatmapColor(value, 100)} rounded-sm border border-black/50 flex items-center justify-center text-white font-bold text-xs md:text-sm transition-all duration-300 hover:scale-110 flex-shrink-0`}
+                        >
+                          {Math.round(value)}°C
+                        </motion.div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-center gap-4 mt-6">
+              <div className="flex flex-wrap justify-center gap-3 md:gap-4 mt-6">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                  <span className="text-gray-400 text-xs">Low (68-75°C)</span>
+                  <span className="text-gray-400 text-xs md:text-sm">Low (68-75°C)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-green-500 rounded"></div>
-                  <span className="text-gray-400 text-xs">Optimal (75-85°C)</span>
+                  <span className="text-gray-400 text-xs md:text-sm">Optimal (75-85°C)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                  <span className="text-gray-400 text-xs">High (85-92°C)</span>
+                  <span className="text-gray-400 text-xs md:text-sm">High (85-92°C)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-orange-500 rounded"></div>
-                  <span className="text-gray-400 text-xs">Very High (92-96°C)</span>
+                  <span className="text-gray-400 text-xs md:text-sm">Very High (92-96°C)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-red-600 rounded"></div>
-                  <span className="text-gray-400 text-xs">Critical (96-100°C)</span>
+                  <span className="text-gray-400 text-xs md:text-sm">Critical (96-100°C)</span>
                 </div>
               </div>
             </motion.div>
 
             {/* Telemetry Comparison Graph */}
-            {selectedTelemetryHistory.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, delay: 0.5 }}
-                className="mb-16 p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm"
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              className="mb-16 p-6 md:p-8 bg-black/80 border border-red-500/30 rounded-lg backdrop-blur-sm w-full"
+            >
+              <h2
+                className="text-2xl md:text-3xl font-bold text-white mb-6 uppercase tracking-wider"
+                style={{ fontFamily: "var(--font-orbitron)" }}
               >
-                <h2
-                  className="text-2xl md:text-3xl font-bold text-white mb-6 uppercase tracking-wider"
-                  style={{ fontFamily: "var(--font-orbitron)" }}
-                >
-                  Throttle & Brake Analysis
-                </h2>
+                Throttle & Brake Analysis
+              </h2>
+              <div className="w-full h-[500px] min-h-[400px]">
                 <ChartContainer
                   config={{
                     throttle: { label: "Throttle (%)", color: "#00FF88" },
                     brake: { label: "Brake (%)", color: "#FF4444" },
                   }}
-                  className="h-96"
+                  className="w-full h-full"
                 >
-                  <BarChart data={selectedTelemetryHistory.slice(-20).map((t, i) => ({
-                    time: i,
-                    throttle: (t.throttle || 0) * 100,
-                    brake: (t.brake || 0) * 100,
-                  }))}>
+                  <BarChart 
+                    data={selectedTelemetryHistory.length > 0 
+                      ? selectedTelemetryHistory.slice(-20).map((t, i) => ({
+                          time: i,
+                          throttle: (t.throttle || 0) * 100,
+                          brake: (t.brake || 0) * 100,
+                        }))
+                      : Array.from({ length: 20 }, (_, i) => ({
+                          time: i,
+                          throttle: Math.random() * 100,
+                          brake: Math.random() * 50,
+                        }))
+                    }
+                    width={undefined} 
+                    height={undefined}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="time" stroke="#888" />
                     <YAxis stroke="#888" />
@@ -827,8 +865,8 @@ export default function F1CarFeaturesDashboard() {
                     <Bar dataKey="brake" fill="#FF4444" fillOpacity={0.8} />
                   </BarChart>
                 </ChartContainer>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
 
             {/* Commented out other sections */}
             {/*
