@@ -192,7 +192,7 @@ export function RaceProvider({ children }) {
           console.warn("Failed to update telemetry:", error);
         });
     }
-  }, [isRaceActive, activeRaceId, currentTokenId, raceTime, updateCompetitor, calculateDistance]);
+  }, [isRaceActive, activeRaceId, currentTokenId, updateCompetitor, calculateDistance]);
 
   // Cleanup on unmount
   useEffect(() => {

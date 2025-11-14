@@ -37,9 +37,10 @@ export function F1Track() {
 
 function CircularTrack({ radius }) {
   const segments = 64; // More segments for smoother circle
-  const trackWidth = radius * 0.3; // Width between inner and outer lines
+  const trackWidth = radius * 0.3; // Width between inner and outer lines (4.5 units)
   const lineHeight = 0.02; // Height of the white lines
   const lineWidth = 0.05; // Width of the white lines
+  const centerRadius = radius - trackWidth / 2; // Center line radius (12.75 units)
 
   // Create outer circle points
   const outerPoints = useMemo(() => {
@@ -123,6 +124,32 @@ function CircularTrack({ radius }) {
           opacity={0.3}
         />
       </mesh>
+
+      {/* Center line (dashed yellow line for reference) */}
+      {Array.from({ length: segments }).map((_, i) => {
+        if (i % 4 !== 0) return null; // Dashed line - show every 4th segment
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * centerRadius;
+        const z = Math.sin(angle) * centerRadius * 0.6;
+        const nextAngle = ((i + 1) / segments) * Math.PI * 2;
+        const nextX = Math.cos(nextAngle) * centerRadius;
+        const nextZ = Math.sin(nextAngle) * centerRadius * 0.6;
+        const dx = nextX - x;
+        const dz = nextZ - z;
+        const length = Math.sqrt(dx * dx + dz * dz);
+        const lineAngle = Math.atan2(dx, dz);
+
+        return (
+          <mesh
+            key={`center-line-${i}`}
+            position={[(x + nextX) / 2, 0.015, (z + nextZ) / 2]}
+            rotation={[0, lineAngle, 0]}
+          >
+            <boxGeometry args={[0.02, 0.01, length * 0.8]} />
+            <meshStandardMaterial color="#ffff00" emissive="#ffff00" emissiveIntensity={0.5} />
+          </mesh>
+        );
+      })}
     </>
   );
 }

@@ -389,14 +389,25 @@ async function updateTelemetry(raceId, tokenId, telemetryData) {
   const scaledAccel = Math.round(clampedAccel * 1000);
 
   // Contract expects uint256 (unsigned), so we need to convert negative to positive
-  // Use offset: add 10000 so -10000 becomes 0, 0 becomes 10000, +10000 becomes 20000
+  // Use offset: add 100000 so -100000 becomes 0, 0 becomes 100000, +100000 becomes 200000
   // This allows representing -100 to +100 m/s² range (after scaling: -100000 to +100000)
-  // Offset of 100000 means: -100000 -> 0, 0 -> 100000, +100000 -> 200000
   const ACCEL_OFFSET = 100000; // Offset to make negative values positive
   const finalScaledAccel = Math.max(
     0,
     Math.min(200000, scaledAccel + ACCEL_OFFSET)
   );
+
+  // Debug logging (remove in production)
+  if (
+    scaledAccel < 0 ||
+    scaledAccel > 100000 ||
+    finalScaledAccel < 0 ||
+    finalScaledAccel > 200000
+  ) {
+    console.warn(
+      `[Telemetry Debug] accel: ${acceleration}, clamped: ${clampedAccel}, scaled: ${scaledAccel}, final: ${finalScaledAccel}`
+    );
+  }
 
   // Validate other values
   const clampedSpeed = Math.max(0, Math.min(500, Math.round(speed))); // 0-500 km/h
@@ -405,6 +416,14 @@ async function updateTelemetry(raceId, tokenId, telemetryData) {
     0,
     Math.min(100, Math.round(lapProgress))
   );
+
+  // Final validation - ensure all values are within uint256 bounds
+  if (finalScaledAccel < 0 || finalScaledAccel > 200000) {
+    console.error(
+      `[Telemetry] Invalid finalScaledAccel: ${finalScaledAccel} (from accel: ${acceleration}, scaled: ${scaledAccel})`
+    );
+    return { success: false, error: "Acceleration out of bounds" };
+  }
 
   try {
     const tx = await contractWithSigner.updateTelemetry(

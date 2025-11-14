@@ -20,14 +20,27 @@ export function F1Car({
 }) {
   const carConfig = carConfigs[carType] || carConfigs.ferrari;
   // F1 Car dimensions (smaller, faster)
+  // Track waypoints for AI mode
+  const waypoints = useMemo(() => {
+    if (isAI) {
+      const { generateTrackWaypoints } = require("../utils/trackPath");
+      return generateTrackWaypoints(64);
+    }
+    return null;
+  }, [isAI]);
+
   // Start from track position (near start line) or center
   const position = useMemo(() => {
     if (startFromTrack) {
+      if (isAI) {
+        const { getStartingPosition } = require("../utils/trackPath");
+        return getStartingPosition(startOffset || 0, 5);
+      }
       // Start near the start/finish line on the track (z=15, slightly offset)
       return [0, 0.3, 14.5];
     }
     return [0, 0.3, 0];
-  }, [startFromTrack]);
+  }, [startFromTrack, isAI, startOffset]);
   const width = 0.12; // Narrower for F1
   const height = 0.06;
   const front = 0.12;
@@ -104,8 +117,8 @@ export function F1Car({
   useFrame((state, delta) => {
     if (!chassisBody.current) return;
 
-    // AI Control Logic (if AI mode)
-    if (isAI && vehicleApi) {
+    // AI Control Logic (if AI mode) - follows track waypoints
+    if (isAI && vehicleApi && waypoints) {
       positionVec.setFromMatrixPosition(chassisBody.current.matrixWorld);
       quaternionVec.setFromRotationMatrix(chassisBody.current.matrixWorld);
 
@@ -113,34 +126,55 @@ export function F1Car({
       botStateRef.current.currentSpeed = distance / delta;
       prevPositionRef.current.copy(positionVec);
 
-      const x = positionVec.x;
+      // Find closest waypoint and get next target
+      const { getClosestWaypointIndex, getNextWaypoint } = require("../utils/trackPath");
+      const closestIndex = getClosestWaypointIndex(
+        [positionVec.x, positionVec.y, positionVec.z],
+        waypoints
+      );
+      const lookAhead = 3 + Math.round((aggressiveness / 100) * 2);
+      const { waypoint: targetWaypoint } = getNextWaypoint(closestIndex, lookAhead, waypoints);
 
-      // AI steering - stay on track center
-      const targetX = 0;
-      const xError = x - targetX;
-      botStateRef.current.steeringAngle = Math.max(-1, Math.min(1, xError * 2));
+      // Calculate direction to target waypoint
+      const directionToTarget = new Vector3()
+        .subVectors(targetWaypoint, positionVec)
+        .normalize();
+
+      // Get current car direction (forward vector)
+      const forward = new Vector3(0, 0, 1);
+      forward.applyQuaternion(quaternionVec);
+      forward.normalize();
+
+      // Calculate steering angle
+      const cross = new Vector3().crossVectors(forward, directionToTarget);
+      const dot = forward.dot(directionToTarget);
+      let steeringAngle = Math.atan2(cross.y, dot) * 2;
 
       // Apply AI controls
       const throttle = Math.min(1, botStateRef.current.targetSpeed / Math.max(0.1, botStateRef.current.currentSpeed));
       const consistencyFactor = consistency / 100;
-      const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.3;
-      const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.2;
+      const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.2;
+      const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.15;
+
+      const aggressivenessFactor = aggressiveness / 100;
+      const finalRandomSteer = randomSteer * (1 - aggressivenessFactor * 0.5);
+      const finalRandomThrottle = randomThrottle * (1 - aggressivenessFactor * 0.5);
 
       vehicleApi.applyEngineForce(
-        (throttle + randomThrottle) * 200 * (1 + aggressiveness / 200),
+        (throttle + finalRandomThrottle) * 200 * (1 + aggressiveness / 200),
         2
       );
       vehicleApi.applyEngineForce(
-        (throttle + randomThrottle) * 200 * (1 + aggressiveness / 200),
+        (throttle + finalRandomThrottle) * 200 * (1 + aggressiveness / 200),
         3
       );
 
       vehicleApi.setSteeringValue(
-        Math.max(-0.5, Math.min(0.5, botStateRef.current.steeringAngle + randomSteer)),
+        Math.max(-0.5, Math.min(0.5, steeringAngle + finalRandomSteer)),
         0
       );
       vehicleApi.setSteeringValue(
-        Math.max(-0.5, Math.min(0.5, botStateRef.current.steeringAngle + randomSteer)),
+        Math.max(-0.5, Math.min(0.5, steeringAngle + finalRandomSteer)),
         1
       );
     }

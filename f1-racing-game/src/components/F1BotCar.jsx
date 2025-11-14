@@ -1,9 +1,16 @@
 import { useBox, useRaycastVehicle } from "@react-three/cannon";
 import { useFrame } from "@react-three/fiber";
-import { useRef, useMemo, useCallback } from "react";
+import { useRef, useMemo } from "react";
 import { Quaternion, Vector3 } from "three";
 import { useF1Wheels } from "../hooks/useF1Wheels";
 import { carConfigs } from "../config/carConfigs";
+import {
+  generateTrackWaypoints,
+  getClosestWaypointIndex,
+  getNextWaypoint,
+  getStartingPosition,
+  getTrackProgress,
+} from "../utils/trackPath";
 
 /**
  * AI Bot Car - races automatically around the track
@@ -19,10 +26,12 @@ export function F1BotCar({
 }) {
   const carConfig = carConfigs[carType] || carConfigs.mercedes;
   
-  // Start position with offset for staggered grid
+  // Track waypoints - shared across all bots
+  const waypoints = useMemo(() => generateTrackWaypoints(64), []);
+  
+  // Start position on track with proper grid offset
   const position = useMemo(() => {
-    const offsetX = startOffset * 0.3; // Stagger cars side by side
-    return [offsetX, 0.3, 14.5 - startOffset * 0.1]; // Slight forward offset too
+    return getStartingPosition(startOffset, 5); // Assuming max 5 cars
   }, [startOffset]);
 
   const width = 0.12;
@@ -31,7 +40,7 @@ export function F1BotCar({
   const wheelRadius = 0.04;
 
   const chassisBodyArgs = useMemo(() => [width, height, front * 2], [width, height, front]);
-  const [chassisBody, chassisApi] = useBox(
+  const [chassisBody] = useBox(
     () => ({
       allowSleep: false,
       args: chassisBodyArgs,
@@ -59,6 +68,11 @@ export function F1BotCar({
     steeringAngle: 0,
     trackProgress: 0, // 0-1 around track
     lastUpdate: 0,
+    currentWaypointIndex: 0,
+    lookAheadDistance: 3 + (aggressiveness / 100) * 2, // More aggressive = look further ahead
+    overtaking: false,
+    overtakeTarget: null,
+    lastOvertakeAttempt: 0,
   });
 
   const prevPositionRef = useRef(new Vector3(0, 0, 0));
@@ -69,7 +83,7 @@ export function F1BotCar({
   useFrame((state, delta) => {
     if (!chassisBody.current || !vehicleApi) return;
 
-    const now = Date.now();
+    const currentTime = Date.now();
     const botState = botStateRef.current;
 
     // Update position tracking
@@ -81,58 +95,81 @@ export function F1BotCar({
     botState.currentSpeed = distance / delta;
     prevPositionRef.current.copy(positionVec);
 
-    // Simple track following AI
-    // Track is roughly a loop, we'll follow the z-axis forward
-    const z = positionVec.z;
-    const x = positionVec.x;
+    // Find closest waypoint and update track progress
+    const closestIndex = getClosestWaypointIndex(
+      [positionVec.x, positionVec.y, positionVec.z],
+      waypoints
+    );
+    botState.currentWaypointIndex = closestIndex;
+    botState.trackProgress = getTrackProgress(closestIndex, waypoints.length);
 
-    // Calculate track progress (0-1)
-    // Track goes from z=14.5 to z=-14.5 and back
-    if (z > 14) {
-      botState.trackProgress = 0.25 + (14.5 - z) / 60; // Top straight
-    } else if (z < -14) {
-      botState.trackProgress = 0.75 + (z + 14.5) / 60; // Bottom straight
-    } else if (x > 0) {
-      botState.trackProgress = 0.5 + (14.5 - z) / 60; // Right turn
-    } else {
-      botState.trackProgress = 0.25 - (z - 14.5) / 60; // Left turn
+    // Get next waypoint to steer towards (look ahead based on aggressiveness)
+    const lookAhead = Math.round(botState.lookAheadDistance);
+    const { waypoint: targetWaypoint } = getNextWaypoint(closestIndex, lookAhead, waypoints);
+
+    // Calculate direction to target waypoint
+    const directionToTarget = new Vector3()
+      .subVectors(targetWaypoint, positionVec)
+      .normalize();
+
+    // Get current car direction (forward vector)
+    const forward = new Vector3(0, 0, 1);
+    forward.applyQuaternion(quaternionVec);
+    forward.normalize();
+
+    // Calculate steering angle to reach target waypoint
+    const cross = new Vector3().crossVectors(forward, directionToTarget);
+    const dot = forward.dot(directionToTarget);
+    let steeringAngle = Math.atan2(cross.y, dot) * 2; // Multiply for more responsive steering
+
+    // Overtaking logic - check if we should attempt to overtake
+    if (currentTime - botState.lastOvertakeAttempt > 2000 && aggressiveness > 60) {
+      // High aggressiveness bots try to overtake more often
+      const shouldOvertake = Math.random() < (aggressiveness / 100) * 0.3;
+      if (shouldOvertake) {
+        botState.overtaking = true;
+        botState.lastOvertakeAttempt = currentTime;
+        // Adjust steering slightly to one side for overtaking
+        const overtakeDirection = Math.random() > 0.5 ? 1 : -1;
+        steeringAngle += overtakeDirection * 0.3 * (aggressiveness / 100);
+      } else {
+        botState.overtaking = false;
+      }
     }
 
-    // AI steering - try to stay on track center (x=0)
-    const targetX = 0;
-    const xError = x - targetX;
-    botState.steeringAngle = Math.max(-1, Math.min(1, xError * 2)); // Clamp steering
+    // Clamp steering angle
+    botState.steeringAngle = Math.max(-0.5, Math.min(0.5, steeringAngle));
 
-    // Apply AI controls
-    const throttle = Math.min(1, botState.targetSpeed / Math.max(0.1, botState.currentSpeed));
-    const brake = botState.currentSpeed > botState.targetSpeed * 1.1 ? 0.3 : 0;
+    // Apply AI controls with overtaking boost
+    const baseThrottle = Math.min(1, botState.targetSpeed / Math.max(0.1, botState.currentSpeed));
+    const overtakeBoost = botState.overtaking ? 1.2 : 1.0; // 20% speed boost when overtaking
+    const throttle = Math.min(1, baseThrottle * overtakeBoost);
 
     // Apply some randomness based on consistency
     const consistencyFactor = consistency / 100; // 0-1
-    const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.3;
-    const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.2;
+    const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.2;
+    const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.15;
+    
+    // More aggressive bots have less randomness (more consistent)
+    const aggressivenessFactor = aggressiveness / 100;
+    const finalRandomSteer = randomSteer * (1 - aggressivenessFactor * 0.5);
+    const finalRandomThrottle = randomThrottle * (1 - aggressivenessFactor * 0.5);
 
-    vehicleApi.applyEngineForce(
-      (throttle + randomThrottle) * 200 * (1 + aggressiveness / 200),
-      2
-    );
-    vehicleApi.applyEngineForce(
-      (throttle + randomThrottle) * 200 * (1 + aggressiveness / 200),
-      3
-    );
+    // Calculate engine force with aggressiveness and overtaking boost
+    const baseForce = 200 * (1 + aggressiveness / 200);
+    const engineForce = (throttle + finalRandomThrottle) * baseForce * overtakeBoost;
 
-    vehicleApi.setSteeringValue(
-      Math.max(-0.5, Math.min(0.5, botState.steeringAngle + randomSteer)),
-      0
-    );
-    vehicleApi.setSteeringValue(
-      Math.max(-0.5, Math.min(0.5, botState.steeringAngle + randomSteer)),
-      1
-    );
+    vehicleApi.applyEngineForce(engineForce, 2);
+    vehicleApi.applyEngineForce(engineForce, 3);
+
+    // Apply steering with consistency-based randomness
+    const finalSteering = Math.max(-0.5, Math.min(0.5, botState.steeringAngle + finalRandomSteer));
+    vehicleApi.setSteeringValue(finalSteering, 0);
+    vehicleApi.setSteeringValue(finalSteering, 1);
 
     // Update position for telemetry (throttled)
-    if (now - botState.lastUpdate >= 100) {
-      botState.lastUpdate = now;
+    if (currentTime - botState.lastUpdate >= 100) {
+      botState.lastUpdate = currentTime;
       
       if (onPositionUpdate) {
         const speedKmh = botState.currentSpeed * 10; // Convert to km/h

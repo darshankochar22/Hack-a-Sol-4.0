@@ -1,15 +1,10 @@
-/* global BigInt */
 import { useState, useEffect, useMemo } from "react";
 import { useRace } from "../contexts/RaceContext";
-import { racingApi } from "../utils/racingApi";
 import "./RaceAnalyticsPage.css";
 
 export function RaceAnalyticsPage() {
-  const { competitors, raceTime, raceDuration, isRaceActive, activeRaceId } = useRace();
+  const { competitors, raceTime, raceDuration, isRaceActive } = useRace();
   const [raceHistory, setRaceHistory] = useState([]);
-  const [selectedRaceId, setSelectedRaceId] = useState(null);
-  const [raceData, setRaceData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Collect race history data during active race
   useEffect(() => {
@@ -34,23 +29,6 @@ export function RaceAnalyticsPage() {
 
     return () => clearInterval(interval);
   }, [isRaceActive, competitors, raceTime]);
-
-  // Load race data from backend
-  useEffect(() => {
-    if (selectedRaceId) {
-      setIsLoading(true);
-      racingApi
-        .getRace(selectedRaceId)
-        .then((data) => {
-          setRaceData(data);
-          setIsLoading(false);
-        })
-        .catch((error) => {
-          console.error("Failed to load race data:", error);
-          setIsLoading(false);
-        });
-    }
-  }, [selectedRaceId]);
 
   // Calculate statistics
   const statistics = useMemo(() => {

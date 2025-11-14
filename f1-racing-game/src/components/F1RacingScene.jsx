@@ -42,7 +42,7 @@ export function F1RacingScene({
     if (position && position[2] !== undefined) {
       lastCheckpointRef.current = position[2];
     }
-  }, [onPositionUpdate, onLapComplete]);
+  }, [onPositionUpdate]);
 
   return (
     <Suspense fallback={null}>
@@ -68,8 +68,9 @@ export function F1RacingScene({
           carType={carType}
           startFromTrack={true}
           isAI={true} // Make player car AI-controlled too
-          aggressiveness={competitors.find(c => c.isPlayer)?.aggressiveness || 50}
-          consistency={competitors.find(c => c.isPlayer)?.consistency || 50}
+          aggressiveness={competitors.find(c => c.isPlayer)?.aggressiveness || 55}
+          consistency={competitors.find(c => c.isPlayer)?.consistency || 60}
+          startOffset={0} // Player starts in pole position
           tokenId={competitors.find(c => c.isPlayer)?.tokenId}
           name={competitors.find(c => c.isPlayer)?.name}
         />
@@ -84,7 +85,7 @@ export function F1RacingScene({
           aggressiveness={bot.aggressiveness || 50}
           consistency={bot.consistency || 50}
           carType={bot.carType || "mercedes"}
-          startOffset={index + 1} // Staggered start
+          startOffset={index + 1} // Staggered start (1, 2, 3, 4...)
           onPositionUpdate={onCompetitorUpdate}
         />
       ))}

@@ -129,7 +129,6 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
 
       // Update local race data for UI
       if (racers.length > 0 && currentTokenId) {
-        const position = data.position || [0, 0, 0];
         const raceDataUpdate = {
           currentSpeed: Math.round((data.speed || 0) * 10),
           currentLap: Math.floor((raceTime || 0) / 10) + 1, // Approximate lap based on time
