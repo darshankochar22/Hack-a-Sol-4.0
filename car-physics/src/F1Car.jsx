@@ -7,7 +7,21 @@ import { useF1Wheels } from "./useF1Wheels";
 
 export function F1Car({ thirdPerson, onPositionUpdate, sendPositionUpdate }) {
   // F1 Car dimensions (smaller, faster)
-  const position = [0, 0.3, 0];
+  // Start position: on the track, in the middle lane, at the start line
+  // Track: radius=25, innerRadius=16.25, trackWidth=8.75, 3 lanes
+  // Start line is at z = 25 * 0.6 = 15 (front of oval)
+  // Position car in the middle lane (lane 2 of 3) - offset x to be in that lane
+  const trackRadius = 25;
+  const innerRadius = trackRadius * 0.65; // 16.25
+  const trackWidth = trackRadius - innerRadius; // 8.75
+  const startLineZ = trackRadius * 0.6; // 15
+  
+  // At start line (z=15), position car in middle lane
+  // Middle lane is at: innerRadius + laneWidth * 2 from center
+  // At start line, offset x to position in middle lane
+  // Simple approach: offset x by half the track width to be in middle lane
+  const middleLaneX = (innerRadius + trackWidth / 2) - trackRadius; // Position in middle lane
+  const position = [middleLaneX, 0.3, startLineZ];
   const width = 0.12; // Narrower for F1
   const height = 0.06;
   const front = 0.12;

@@ -7,8 +7,9 @@ import { RemoteCar } from "./components/RemoteCar";
 export function F1RacingScene({ onLapComplete, onPositionUpdate, players, sendPositionUpdate }) {
   const [thirdPerson, setThirdPerson] = useState(true);
   const [cameraPosition, setCameraPosition] = useState([-8, 5, 8]);
-  const [lapCount, setLapCount] = useState(0);
+  const [showFinishLineEffect, setShowFinishLineEffect] = useState(false);
   const lastCheckpointRef = useRef(0);
+  const lapCountRef = useRef(0); // Track lap count locally
 
   useEffect(() => {
     function keydownHandler(e) {
@@ -30,16 +31,36 @@ export function F1RacingScene({ onLapComplete, onPositionUpdate, players, sendPo
       onPositionUpdate(data);
     }
 
-    // Check lap completion
+    // Check lap completion - improved detection
     const position = data.position;
-    // Simple lap detection: when car passes start line (z > 15 and was behind)
-    const startLineZ = 25 * 0.6; // Match track radius * 0.6
-    if (position[2] > startLineZ && lastCheckpointRef.current < startLineZ) {
-      setLapCount((prev) => {
-        const newLap = prev + 1;
-        if (onLapComplete) onLapComplete(newLap);
-        return newLap;
-      });
+    const startLineZ = 25 * 0.6; // Match track radius * 0.6 (15)
+    const trackRadius = 25;
+    const innerRadius = trackRadius * 0.65;
+    
+    // Check if car is crossing the start line
+    // Must be moving forward (z increasing) and within track boundaries
+    const isCrossingLine = 
+      position[2] > startLineZ && 
+      lastCheckpointRef.current < startLineZ;
+    
+    // Check if car is within track boundaries (on the track, not outside)
+    const distanceFromCenter = Math.sqrt(position[0] ** 2 + (position[2] / 0.6) ** 2);
+    const isOnTrack = distanceFromCenter >= innerRadius - 1 && distanceFromCenter <= trackRadius + 1;
+    
+    if (isCrossingLine && isOnTrack) {
+      // Increment lap count
+      lapCountRef.current += 1;
+      const newLap = lapCountRef.current;
+      
+      if (onLapComplete) {
+        onLapComplete(newLap);
+      }
+      
+      // Show finish line effect
+      setShowFinishLineEffect(true);
+      setTimeout(() => {
+        setShowFinishLineEffect(false);
+      }, 500);
     }
     lastCheckpointRef.current = position[2];
   };
@@ -64,7 +85,7 @@ export function F1RacingScene({ onLapComplete, onPositionUpdate, players, sendPo
         onPositionUpdate={handleCarPositionUpdate}
         sendPositionUpdate={sendPositionUpdate}
       />
-      
+
       {/* Render remote players */}
       {players && Object.entries(players).map(([playerId, playerData]) => (
         <RemoteCar
@@ -76,11 +97,15 @@ export function F1RacingScene({ onLapComplete, onPositionUpdate, players, sendPo
         />
       ))}
 
-      {/* Lap counter UI */}
-      {lapCount > 0 && (
-        <mesh position={[0, 3, 0]}>
-          <planeGeometry args={[2, 0.5]} />
-          <meshBasicMaterial color="black" transparent opacity={0.7} />
+      {/* Finish line crossing effect - green flash */}
+      {showFinishLineEffect && (
+        <mesh position={[0, 0.15, 25 * 0.6]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[10, 2]} />
+          <meshBasicMaterial 
+            color="#00ff00" 
+            transparent 
+            opacity={0.8}
+          />
         </mesh>
       )}
     </Suspense>

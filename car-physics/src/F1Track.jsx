@@ -1,6 +1,7 @@
 import { usePlane } from "@react-three/cannon";
 import { useRef, useMemo } from "react";
 import { Vector3 } from "three";
+import { TrackWalls } from "./components/TrackWalls";
 
 // Track boundary component - creates white line boundaries with lanes
 function TrackBoundary({ position, radius }) {
@@ -164,6 +165,9 @@ export function F1Track() {
 
       {/* Track boundaries - multi-lane oval track */}
       <TrackBoundary position={[0, 0.1, 0]} radius={25} />
+      
+      {/* Physics walls - prevent cars from leaving the track */}
+      <TrackWalls radius={25} />
       
       {/* Start/Finish line */}
       <mesh position={[0, 0.11, 25 * 0.6]} rotation={[-Math.PI / 2, 0, 0]}>

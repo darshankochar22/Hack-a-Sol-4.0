@@ -54,9 +54,15 @@ export const useF1Controls = (vehicleApi, chassisApi) => {
       }
     }
 
-    // Reset position
+    // Reset position - back to start line in middle lane
     if (controls.r) {
-      chassisApi.position.set(0, 0.3, 0);
+      const trackRadius = 25;
+      const innerRadius = trackRadius * 0.65;
+      const trackWidth = trackRadius - innerRadius;
+      const startLineZ = trackRadius * 0.6;
+      const middleLaneX = (innerRadius + trackWidth / 2) - trackRadius;
+      
+      chassisApi.position.set(middleLaneX, 0.3, startLineZ);
       chassisApi.velocity.set(0, 0, 0);
       chassisApi.angularVelocity.set(0, 0, 0);
       chassisApi.rotation.set(0, 0, 0);
