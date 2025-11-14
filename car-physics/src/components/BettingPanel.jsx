@@ -71,39 +71,42 @@ export function BettingPanel({
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          position: "absolute",
+          position: "fixed",
           bottom: "20px",
           left: "20px",
-          background: isOpen ? "#00ff00" : "rgba(0, 255, 0, 0.7)",
+          background: isOpen ? "#00ff00" : "rgba(0, 255, 0, 0.9)",
           color: "#000",
-          border: "2px solid #00ff00",
-          borderRadius: "8px",
-          padding: "10px 20px",
-          fontSize: "14px",
+          border: "3px solid #00ff00",
+          borderRadius: "10px",
+          padding: "12px 24px",
+          fontSize: "16px",
           fontWeight: "bold",
           cursor: "pointer",
-          zIndex: 1001,
+          zIndex: 10000,
           fontFamily: "monospace",
-          boxShadow: "0 4px 8px rgba(0, 0, 0, 0.3)",
+          boxShadow: "0 4px 12px rgba(0, 255, 0, 0.5)",
           transition: "all 0.3s ease",
+          pointerEvents: "auto",
         }}
         onMouseEnter={(e) => {
           e.target.style.background = "#00ff00";
-          e.target.style.transform = "scale(1.05)";
+          e.target.style.transform = "scale(1.1)";
+          e.target.style.boxShadow = "0 6px 16px rgba(0, 255, 0, 0.7)";
         }}
         onMouseLeave={(e) => {
-          e.target.style.background = isOpen ? "#00ff00" : "rgba(0, 255, 0, 0.7)";
+          e.target.style.background = isOpen ? "#00ff00" : "rgba(0, 255, 0, 0.9)";
           e.target.style.transform = "scale(1)";
+          e.target.style.boxShadow = "0 4px 12px rgba(0, 255, 0, 0.5)";
         }}
       >
-        {isOpen ? "✕ Close" : "💰 Betting"}
+        {isOpen ? "✕ Close Betting" : "💰 Betting"}
       </button>
 
       {/* Betting Panel */}
       {isOpen && (
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             bottom: "80px",
             left: "20px",
             background: "rgba(0, 0, 0, 0.95)",
@@ -114,10 +117,11 @@ export function BettingPanel({
             maxWidth: "500px",
             maxHeight: "70vh",
             overflowY: "auto",
-            zIndex: 1000,
+            zIndex: 9999,
             border: "2px solid #00ff00",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
             fontFamily: "monospace",
+            pointerEvents: "auto",
           }}
         >
           {/* Header */}
