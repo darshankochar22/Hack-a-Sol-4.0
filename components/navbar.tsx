@@ -10,6 +10,7 @@ export default function Navbar() {
   const navItems = [
     { label: "Home", href: "/" },
     { label: "Play Now", href: "#play" },
+    { label: "Bet Now", href: "/bet-now" },
     { label: "Contact Us", href: "#contact" },
   ]
 
