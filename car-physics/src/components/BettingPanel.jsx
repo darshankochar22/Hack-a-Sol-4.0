@@ -29,10 +29,16 @@ export function BettingPanel({
     return calculateOdds();
   }, [calculateOdds]);
 
-  // Get available players
+  // Get available players (reactive to players changes)
   const availablePlayers = useMemo(() => {
-    return getAvailablePlayers();
-  }, [getAvailablePlayers]);
+    const available = getAvailablePlayers();
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Available players for betting:", available);
+      console.log("Total players in room:", Object.keys(players || {}).length + 1);
+    }
+    return available;
+  }, [getAvailablePlayers, players]);
 
   // Handle bet placement
   const handlePlaceBet = () => {
@@ -324,7 +330,21 @@ export function BettingPanel({
                     color: "#888",
                   }}
                 >
-                  No other players available to bet on
+                  <div style={{ marginBottom: "10px", fontSize: "14px" }}>
+                    No other players available to bet on
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                    Connected players: {Object.keys(players || {}).length + 1}
+                    <br />
+                    (You + {Object.keys(players || {}).length} others)
+                  </div>
+                  {Object.keys(players || {}).length > 0 && (
+                    <div style={{ fontSize: "11px", color: "#555", marginTop: "10px" }}>
+                      Waiting for player data to sync...
+                      <br />
+                      Player IDs: {Object.keys(players || {}).map(id => id.slice(-6)).join(", ")}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

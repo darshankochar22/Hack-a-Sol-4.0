@@ -27,7 +27,7 @@ export const useBetting = (
       };
 
       // Add other players' performance
-      if (players) {
+      if (players && Object.keys(players).length > 0) {
         Object.entries(players).forEach(([id, data]) => {
           // Get performance from player data if available
           newPerformance[id] = {
@@ -38,6 +38,13 @@ export const useBetting = (
             lastUpdate: data.timestamp || Date.now(),
           };
         });
+        console.log(
+          `[useBetting] Updated performance for ${
+            Object.keys(players).length
+          } other players`
+        );
+      } else {
+        console.log("[useBetting] No other players found in players object");
       }
 
       performanceRef.current = newPerformance;
@@ -139,22 +146,26 @@ export const useBetting = (
 
   // Get available players to bet on (exclude self)
   const getAvailablePlayers = useCallback(() => {
-    const performance = performanceRef.current;
-    return Object.keys(performance).filter((id) => id !== playerId);
-  }, [playerId]);
+    const performance = playerPerformance; // Use state instead of ref for reactivity
+    const playerIds = Object.keys(performance).filter((id) => id !== playerId);
+    return playerIds;
+  }, [playerId, playerPerformance]);
 
   // Get player stats for display
-  const getPlayerStats = useCallback((targetPlayerId) => {
-    const performance = performanceRef.current[targetPlayerId];
-    if (!performance) return null;
+  const getPlayerStats = useCallback(
+    (targetPlayerId) => {
+      const performance = playerPerformance[targetPlayerId]; // Use state instead of ref
+      if (!performance) return null;
 
-    return {
-      score: performance.score || 0,
-      laps: performance.laps || 0,
-      speed: performance.speed || 0,
-      lastUpdate: performance.lastUpdate || Date.now(),
-    };
-  }, []);
+      return {
+        score: performance.score || 0,
+        laps: performance.laps || 0,
+        speed: performance.speed || 0,
+        lastUpdate: performance.lastUpdate || Date.now(),
+      };
+    },
+    [playerPerformance]
+  );
 
   return {
     bets,
