@@ -107,7 +107,7 @@ export const useBetting = (
     return odds;
   }, [playerPerformance]);
 
-  // Place a bet on a player
+  // Place a bet on a player (local tracking - actual transaction handled by MetaMask)
   const placeBet = useCallback(
     (targetPlayerId, amount) => {
       if (!targetPlayerId || amount <= 0) return false;
@@ -120,7 +120,7 @@ export const useBetting = (
         id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         playerId: playerId,
         targetPlayerId: targetPlayerId,
-        amount: amount,
+        amount: amount, // Now in ETH
         timestamp: Date.now(),
         claimed: false,
       };
