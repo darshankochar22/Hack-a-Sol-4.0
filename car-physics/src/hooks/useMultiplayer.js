@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 
-// Get server URL from environment or use default
-// For local network: Set REACT_APP_SERVER_URL=http://YOUR_IP:5003
-// Example: REACT_APP_SERVER_URL=http://192.168.1.100:5003
-// Note: Default port is 5003 for the multiplayer backend
-const SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5003";
+// Get default server URL from environment or use default
+const DEFAULT_SERVER_URL =
+  process.env.REACT_APP_SERVER_URL || "http://localhost:5003";
 
-export const useMultiplayer = (playerId, onPlayersUpdate) => {
+export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [players, setPlayers] = useState({});
@@ -15,11 +13,25 @@ export const useMultiplayer = (playerId, onPlayersUpdate) => {
   const lastUpdateTimeRef = useRef(0);
   const UPDATE_INTERVAL = 100; // Send updates every 100ms (10 updates per second)
 
+  // Use provided serverUrl, or default, or saved from localStorage
+  const currentServerUrl =
+    serverUrl ||
+    localStorage.getItem("multiplayerServerUrl") ||
+    DEFAULT_SERVER_URL;
+
   // Initialize socket connection
   useEffect(() => {
     if (!playerId) return;
 
-    const socket = io(SERVER_URL, {
+    // Disconnect existing connection if server URL changed
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      setIsConnected(false);
+      setPlayers({});
+      setRoomId(null);
+    }
+
+    const socket = io(currentServerUrl, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -30,7 +42,7 @@ export const useMultiplayer = (playerId, onPlayersUpdate) => {
 
     socket.on("connect", () => {
       console.log("✅ Connected to multiplayer server:", socket.id);
-      console.log("📍 Server URL:", SERVER_URL);
+      console.log("📍 Server URL:", currentServerUrl);
       setIsConnected(true);
     });
 
@@ -41,11 +53,12 @@ export const useMultiplayer = (playerId, onPlayersUpdate) => {
 
     socket.on("connect_error", (error) => {
       console.error("❌ Connection error:", error.message);
-      console.error("📍 Attempted to connect to:", SERVER_URL);
+      console.error("📍 Attempted to connect to:", currentServerUrl);
       console.error("💡 Make sure:");
-      console.error("   1. Backend server is running");
-      console.error("   2. Server URL is correct (check REACT_APP_SERVER_URL)");
-      console.error("   3. Firewall allows connections on port 5002");
+      console.error("   1. Backend server is running on the host device");
+      console.error("   2. Server URL is correct (check connection settings)");
+      console.error("   3. Firewall allows connections on port 5003");
+      console.error("   4. You're on the same network as the host");
       setIsConnected(false);
     });
 
@@ -117,7 +130,7 @@ export const useMultiplayer = (playerId, onPlayersUpdate) => {
         socketRef.current.disconnect();
       }
     };
-  }, [playerId]);
+  }, [playerId, currentServerUrl]);
 
   // Join a race room
   const joinRoom = useCallback(
@@ -207,5 +220,6 @@ export const useMultiplayer = (playerId, onPlayersUpdate) => {
     joinRoom,
     leaveRoom,
     sendPositionUpdate,
+    serverUrl: currentServerUrl,
   };
 };

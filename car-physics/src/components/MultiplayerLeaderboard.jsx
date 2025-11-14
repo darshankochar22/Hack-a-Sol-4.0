@@ -5,7 +5,7 @@ import { useMemo } from "react";
 const calculateTrackProgress = (position) => {
   if (!position || !Array.isArray(position) || position.length < 3) return 0;
   
-  const [x, y, z] = position;
+  const [x, , z] = position;
   
   // For an oval track, we can use a combination of:
   // 1. Z position (forward progress)

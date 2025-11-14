@@ -6,11 +6,15 @@ import { Physics } from "@react-three/cannon";
 import { useState, useEffect, useMemo } from "react";
 import { useMultiplayer } from "./hooks/useMultiplayer";
 import { MultiplayerLeaderboard } from "./components/MultiplayerLeaderboard";
+import { ServerConnection } from "./components/ServerConnection";
 
 function App() {
   const [lapCount, setLapCount] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [position, setPosition] = useState([0, 0, 0]);
+  const [serverUrl, setServerUrl] = useState(
+    () => localStorage.getItem("multiplayerServerUrl") || ""
+  );
 
   // Generate a unique player ID (in production, this should come from auth)
   const playerId = useMemo(() => {
@@ -31,10 +35,21 @@ function App() {
     joinRoom,
     leaveRoom,
     sendPositionUpdate,
-  } = useMultiplayer(playerId, (updatedPlayers) => {
-    // Optional: handle players update
-    console.log("Players updated:", Object.keys(updatedPlayers).length);
-  });
+    serverUrl: currentServerUrl,
+  } = useMultiplayer(
+    playerId,
+    (updatedPlayers) => {
+      // Optional: handle players update
+      console.log("Players updated:", Object.keys(updatedPlayers).length);
+    },
+    serverUrl
+  );
+
+  // Handle server URL change
+  const handleServerChange = (newServerUrl) => {
+    setServerUrl(newServerUrl);
+    // The useMultiplayer hook will automatically reconnect with new URL
+  };
 
   // Auto-join default room on mount
   useEffect(() => {
@@ -75,6 +90,13 @@ function App() {
           />
         </Physics>
       </Canvas>
+
+      {/* Server Connection UI */}
+      <ServerConnection
+        onServerChange={handleServerChange}
+        currentServer={currentServerUrl}
+        isConnected={isConnected}
+      />
 
       {/* Multiplayer Leaderboard */}
       {isConnected && (
