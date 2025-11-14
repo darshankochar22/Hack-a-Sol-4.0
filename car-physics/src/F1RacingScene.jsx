@@ -32,8 +32,9 @@ export function F1RacingScene({ onLapComplete, onPositionUpdate, players, sendPo
 
     // Check lap completion
     const position = data.position;
-    // Simple lap detection: when car passes start line (z > 14.5 and was behind)
-    if (position[2] > 14.5 && lastCheckpointRef.current < 14.5) {
+    // Simple lap detection: when car passes start line (z > 15 and was behind)
+    const startLineZ = 25 * 0.6; // Match track radius * 0.6
+    if (position[2] > startLineZ && lastCheckpointRef.current < startLineZ) {
       setLapCount((prev) => {
         const newLap = prev + 1;
         if (onLapComplete) onLapComplete(newLap);

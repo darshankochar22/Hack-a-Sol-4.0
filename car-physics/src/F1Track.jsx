@@ -1,63 +1,146 @@
 import { usePlane } from "@react-three/cannon";
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
+import { Vector3 } from "three";
 
-// Track boundary component - creates oval track barriers
+// Track boundary component - creates white line boundaries with lanes
 function TrackBoundary({ position, radius }) {
-  const segments = 32;
-  const points = [];
+  const segments = 128; // More segments for smoother curves
+  const lineHeight = 0.12; // Height of boundary lines
+  const lineWidth = 0.15; // Width of boundary lines (thicker)
+  const numLanes = 3; // Number of lanes
 
-  for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius * 0.6; // Oval shape
-    points.push([x, 0, z]);
-  }
+  // Create outer boundary line points
+  const outerPoints = useMemo(() => {
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius * 0.6; // Oval shape
+      points.push(new Vector3(x, lineHeight, z));
+    }
+    return points;
+  }, [radius, segments]);
+
+  // Create inner boundary line points
+  const innerPoints = useMemo(() => {
+    const innerRadius = radius * 0.65; // Larger track
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * innerRadius;
+      const z = Math.sin(angle) * (innerRadius * 0.6); // Oval shape
+      points.push(new Vector3(x, lineHeight, z));
+    }
+    return points;
+  }, [radius, segments]);
+
+  // Create lane marking points (dashed lines between lanes)
+  const laneMarkings = useMemo(() => {
+    const markings = [];
+    const trackWidth = radius - radius * 0.65;
+    const laneWidth = trackWidth / (numLanes + 1);
+
+    for (let lane = 1; lane <= numLanes; lane++) {
+      const laneRadius = radius * 0.65 + laneWidth * lane;
+      const points = [];
+      
+      // Create dashed line pattern
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * laneRadius;
+        const z = Math.sin(angle) * (laneRadius * 0.6);
+        
+        // Create dashed pattern (show line every 8 segments)
+        if (i % 8 < 4) {
+          points.push(new Vector3(x, lineHeight - 0.02, z));
+        }
+      }
+      markings.push(points);
+    }
+    return markings;
+  }, [radius, segments, numLanes]);
+
 
   return (
     <>
-      {/* Outer barrier */}
-      {points.map((point, i) => {
-        if (i === points.length - 1) return null;
-        const nextPoint = points[i + 1];
-        return (
-          <mesh
-            key={`outer-${i}`}
-            position={[
-              (point[0] + nextPoint[0]) / 2,
-              0.2,
-              (point[2] + nextPoint[2]) / 2,
-            ]}
-          >
-            <boxGeometry args={[0.2, 0.4, 0.5]} />
-            <meshStandardMaterial color="#ff0000" />
-          </mesh>
-        );
-      })}
+      {/* Outer boundary - thick white line */}
+      <group>
+        {outerPoints.map((point, i) => {
+          if (i === outerPoints.length - 1) return null;
+          const nextPoint = outerPoints[i + 1];
+          const direction = new Vector3()
+            .subVectors(nextPoint, point)
+            .normalize();
+          const midPoint = new Vector3()
+            .addVectors(point, nextPoint)
+            .multiplyScalar(0.5);
 
-      {/* Inner barrier */}
-      {points.map((point, i) => {
-        if (i === points.length - 1) return null;
-        const nextPoint = points[i + 1];
-        const innerRadius = radius * 0.7;
-        const innerX = (point[0] / radius) * innerRadius;
-        const innerZ = (point[2] / (radius * 0.6)) * (innerRadius * 0.6);
-        const nextInnerX = (nextPoint[0] / radius) * innerRadius;
-        const nextInnerZ =
-          (nextPoint[2] / (radius * 0.6)) * (innerRadius * 0.6);
-        return (
-          <mesh
-            key={`inner-${i}`}
-            position={[
-              (innerX + nextInnerX) / 2,
-              0.2,
-              (innerZ + nextInnerZ) / 2,
-            ]}
-          >
-            <boxGeometry args={[0.2, 0.4, 0.5]} />
-            <meshStandardMaterial color="#ff0000" />
-          </mesh>
-        );
-      })}
+          return (
+            <mesh
+              key={`outer-${i}`}
+              position={[midPoint.x, midPoint.y, midPoint.z]}
+              rotation={[0, Math.atan2(direction.x, direction.z), 0]}
+            >
+              <boxGeometry args={[lineWidth, 0.02, direction.length() * 0.98]} />
+              <meshStandardMaterial color="#ffffff" />
+            </mesh>
+          );
+        })}
+      </group>
+
+      {/* Inner boundary - thick white line */}
+      <group>
+        {innerPoints.map((point, i) => {
+          if (i === innerPoints.length - 1) return null;
+          const nextPoint = innerPoints[i + 1];
+          const direction = new Vector3()
+            .subVectors(nextPoint, point)
+            .normalize();
+          const midPoint = new Vector3()
+            .addVectors(point, nextPoint)
+            .multiplyScalar(0.5);
+
+          return (
+            <mesh
+              key={`inner-${i}`}
+              position={[midPoint.x, midPoint.y, midPoint.z]}
+              rotation={[0, Math.atan2(direction.x, direction.z), 0]}
+            >
+              <boxGeometry args={[lineWidth, 0.02, direction.length() * 0.98]} />
+              <meshStandardMaterial color="#ffffff" />
+            </mesh>
+          );
+        })}
+      </group>
+
+      {/* Lane markings - dashed white lines */}
+      {laneMarkings.map((lanePoints, laneIndex) => (
+        <group key={`lane-${laneIndex}`}>
+          {lanePoints.map((point, i) => {
+            if (i === lanePoints.length - 1 || i % 8 >= 4) return null;
+            const nextPoint = lanePoints[i + 1];
+            if (!nextPoint || (i + 1) % 8 >= 4) return null;
+            
+            const direction = new Vector3()
+              .subVectors(nextPoint, point)
+              .normalize();
+            const midPoint = new Vector3()
+              .addVectors(point, nextPoint)
+              .multiplyScalar(0.5);
+
+            return (
+              <mesh
+                key={`lane-${laneIndex}-${i}`}
+                position={[midPoint.x, midPoint.y, midPoint.z]}
+                rotation={[0, Math.atan2(direction.x, direction.z), 0]}
+              >
+                <boxGeometry args={[0.05, 0.01, direction.length() * 0.9]} />
+                <meshStandardMaterial color="#ffffff" opacity={0.6} transparent />
+              </mesh>
+            );
+          })}
+        </group>
+      ))}
     </>
   );
 }
@@ -79,16 +162,16 @@ export function F1Track() {
         <meshStandardMaterial color="#2a2a2a" />
       </mesh>
 
-      {/* Track boundaries - simple oval */}
-      <TrackBoundary position={[0, 0.1, 0]} radius={15} />
-
+      {/* Track boundaries - multi-lane oval track */}
+      <TrackBoundary position={[0, 0.1, 0]} radius={25} />
+      
       {/* Start/Finish line */}
-      <mesh position={[0, 0.11, 15]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[2, 0.5]} />
+      <mesh position={[0, 0.11, 25 * 0.6]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[8, 1]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
-      <mesh position={[0, 0.11, 15]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[1.8, 0.3]} />
+      <mesh position={[0, 0.11, 25 * 0.6]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[7.5, 0.6]} />
         <meshStandardMaterial color="#000000" />
       </mesh>
     </>
