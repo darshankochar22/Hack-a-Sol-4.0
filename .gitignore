@@ -1,6 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies
+node_modules/
+**/node_modules/
 /node_modules
 
 # next.js
@@ -9,15 +11,24 @@
 
 # production
 /build
+build/
+dist/
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files
+.env
+.env.local
+.env.*.local
 .env*
+**/.env
+**/.env.local
+**/.env.*.local
 
 # vercel
 .vercel
@@ -26,5 +37,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# R3F Practice folder
+R3F-in-practice/
+*/R3F-in-practice
 R3F-in-practice
 Hack-a-Sol-4.0
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

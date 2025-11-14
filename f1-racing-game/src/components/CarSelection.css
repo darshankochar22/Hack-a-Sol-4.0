@@ -1,0 +1,269 @@
+.car-selection-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+}
+
+.car-selection-container {
+  max-width: 900px;
+  width: 90%;
+  padding: 40px;
+  background: linear-gradient(135deg, rgba(20, 20, 20, 0.98) 0%, rgba(0, 0, 0, 0.98) 100%);
+  border: 2px solid #ff0000;
+  border-radius: 16px;
+  box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
+}
+
+.selection-title {
+  text-align: center;
+  color: #ffffff;
+  font-family: 'Orbitron', monospace;
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 40px;
+  text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+  letter-spacing: 2px;
+}
+
+.cars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.car-card {
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(10, 10, 10, 0.9) 100%);
+  border: 2px solid #333;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.car-card:hover {
+  transform: translateY(-5px);
+  border-color: #666;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.car-card.selected {
+  border-color: #ff0000;
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
+  background: linear-gradient(135deg, rgba(50, 0, 0, 0.9) 0%, rgba(20, 0, 0, 0.9) 100%);
+}
+
+.car-card.selected::before {
+  content: "✓";
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 30px;
+  height: 30px;
+  background: #ff0000;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+}
+
+.car-preview {
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.car-body-preview {
+  position: relative;
+  width: 80px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.car-body-box {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.car-accent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.car-wheels {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.car-wheel-preview {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid;
+  border-radius: 50%;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.car-wheel-preview:nth-child(1) {
+  top: 5px;
+  left: 5px;
+}
+
+.car-wheel-preview:nth-child(2) {
+  top: 5px;
+  right: 5px;
+}
+
+.car-wheel-preview:nth-child(3) {
+  bottom: 5px;
+  left: 5px;
+}
+
+.car-wheel-preview:nth-child(4) {
+  bottom: 5px;
+  right: 5px;
+}
+
+.wheel-center {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.car-info {
+  color: #ffffff;
+}
+
+.car-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  text-align: center;
+  color: #ffffff;
+}
+
+.car-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  min-width: 80px;
+  font-weight: 600;
+}
+
+.stat-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.stat-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  min-width: 30px;
+  text-align: right;
+}
+
+.confirm-button {
+  width: 100%;
+  padding: 18px;
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(255, 0, 0, 0.4);
+}
+
+.confirm-button:hover {
+  background: linear-gradient(135deg, #ff3333 0%, #ff0000 100%);
+  box-shadow: 0 6px 30px rgba(255, 0, 0, 0.6);
+  transform: translateY(-2px);
+}
+
+.confirm-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .cars-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .car-selection-container {
+    padding: 20px;
+  }
+  
+  .selection-title {
+    font-size: 24px;
+  }
+}
+
