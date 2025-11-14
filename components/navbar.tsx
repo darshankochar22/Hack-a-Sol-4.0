@@ -11,7 +11,7 @@ export default function Navbar() {
     { label: "Home", href: "/" },
     { label: "Play Now", href: "#play" },
     { label: "Bet Now", href: "/bet-now" },
-    { label: "Contact Us", href: "#contact" },
+    { label: "Contact Us", href: "/contact" },
   ]
 
   return (

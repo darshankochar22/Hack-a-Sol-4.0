@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import dynamic from "next/dynamic"
 import RadialGauge from "./radial-gauge"
+import F1LoaderOverlay from "./f1-loader-overlay"
 import { FocusCards } from "@/components/ui/focus-cards"
 import { CometCard } from "@/components/ui/comet-card"
 import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect"
@@ -66,6 +67,9 @@ export default function F1CarFeaturesDashboard() {
   const [allDriversBestLaps, setAllDriversBestLaps] = useState<Record<number, Lap | null>>({})
   const [allDriversPositions, setAllDriversPositions] = useState<Record<number, Position | null>>({})
   const [allDriversLapHistory, setAllDriversLapHistory] = useState<Record<number, Lap[]>>({})
+  
+  // State for loader overlay
+  const [showLoader, setShowLoader] = useState(false)
 
   // Car cards data with real F1 car names and their corresponding GLB models
   const carCards = [
@@ -467,6 +471,13 @@ export default function F1CarFeaturesDashboard() {
       ref={containerRef}
       className="min-h-screen bg-background text-foreground py-20 px-4 relative overflow-hidden"
     >
+      {/* F1 Loader Overlay */}
+      <F1LoaderOverlay 
+        show={showLoader} 
+        onComplete={() => setShowLoader(false)} 
+        duration={3}
+      />
+      
       {/* Background Pattern */}
       <div className="fixed inset-0 opacity-[0.02] pointer-events-none z-0">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -901,9 +912,10 @@ export default function F1CarFeaturesDashboard() {
           {selectedCarIndex !== null && (
             <motion.button
               onClick={() => {
-                // Handle play action here - you can navigate or trigger race simulation
+                // Show loader overlay
+                setShowLoader(true)
                 console.log("Play Now clicked for:", carCards[selectedCarIndex]?.title)
-                // You can add navigation to race simulation here
+                // You can add navigation to race simulation here after loader completes
                 // router.push('/race-simulation')
               }}
               initial={{ opacity: 0, scale: 0.8, x: 20 }}

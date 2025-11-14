@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import Navbar from "@/components/navbar"
+import MusicPlayer from "@/components/music-player"
 import { useRouter } from "next/navigation"
 
 export default function BetNowPage() {
@@ -40,6 +41,7 @@ export default function BetNowPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
+      <MusicPlayer />
       
       {/* Background Pattern */}
       <div className="fixed inset-0 opacity-[0.02] pointer-events-none z-0">

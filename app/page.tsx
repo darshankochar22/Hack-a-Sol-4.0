@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { AnimatePresence } from "framer-motion"
 import F1Loader from "@/components/f1-loader"
 import LandingHero from "@/components/landing-hero"
+import MusicPlayer from "@/components/music-player"
 import AboutMachine from "@/components/about-machine"
 import Experience from "@/components/experience"
 import CarEvolution from "@/components/car-evolution"
@@ -44,6 +45,7 @@ export default function Home() {
       </AnimatePresence>
 
       <main className={`bg-background text-foreground ${raceMode ? "speed-lines" : ""}`}>
+        <MusicPlayer />
         <LandingHero />
         {/* Commented out rest of landing page sections */}
         {/* <AboutMachine />
