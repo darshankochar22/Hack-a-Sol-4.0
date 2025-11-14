@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from "framer-motion"
 import Image from "next/image"
 import dynamic from "next/dynamic"
 import { HeroParallax } from "@/components/ui/hero-parallax"
+import { CometCard } from "@/components/ui/comet-card"
 
 // Dynamic import for 3D model
 const F1Car3D = dynamic(() => import("./f1-car-3d-display"), {
@@ -131,6 +132,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
   const rules = [
     {
       category: "RACE START PROCEDURES",
+      description: "Rules governing the start of an F1 race, including formation lap, grid positions, and penalties for false starts.",
+      image: "/racer1.png",
       items: [
         "Formation lap must be completed by all drivers",
         "Starting positions determined by qualifying session",
@@ -141,6 +144,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
     },
     {
       category: "DRIVING STANDARDS",
+      description: "Standards and regulations for driver behavior, overtaking, defensive maneuvers, and respect for flags during racing.",
+      image: "/racer2.png",
       items: [
         "Respect track limits - all four wheels must remain within white lines",
         "Causing a collision results in time penalty or disqualification",
@@ -154,6 +159,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
     },
     {
       category: "PIT STOP RULES",
+      description: "Regulations covering pit lane procedures, mandatory stops, speed limits, and tire change requirements.",
+      image: "/racer3.png",
       items: [
         "Minimum pit stop time enforced (varies by track)",
         "Compulsory tire change required at least once per race",
@@ -167,6 +174,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
     },
     {
       category: "TRACK LIMITS & PENALTIES",
+      description: "Rules defining track boundaries, violations, and the progressive penalty system for exceeding track limits.",
+      image: "/racer4.png",
       items: [
         "Four wheels must remain within white track lines",
         "Three violations result in time penalty",
@@ -180,6 +189,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
     },
     {
       category: "SAFETY CAR & RED FLAG",
+      description: "Procedures for Safety Car periods and red flag situations, including restrictions on overtaking and pit lane access.",
+      image: "/racer5.png",
       items: [
         "No overtaking when Safety Car is deployed",
         "Must maintain position and speed behind Safety Car",
@@ -193,6 +204,8 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
     },
     {
       category: "FLAG SIGNALS",
+      description: "Understanding the various flag signals used in F1 racing to communicate track conditions and driver status.",
+      image: "/racer6.png",
       items: [
         "Green Flag: Track clear, racing conditions",
         "Yellow Flag: Danger ahead, no overtaking",
@@ -204,62 +217,6 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
         "White Flag: Slow vehicle on track ahead",
       ],
     },
-    {
-      category: "TECHNICAL REGULATIONS",
-      items: [
-        "Minimum car weight: 798 kg (including driver and fuel)",
-        "Maximum fuel load: 110 kg",
-        "Tire compound selection must be declared pre-race",
-        "DRS (Drag Reduction System) usage restricted to designated zones",
-        "Power unit changes result in grid penalties",
-        "Illegal modifications lead to disqualification",
-        "All cars must pass technical inspection post-race",
-        "Engine mode restrictions enforced during race",
-      ],
-    },
-    {
-      category: "SPRINT RACE FORMAT",
-      items: [
-        "100 km distance (approximately 30 minutes)",
-        "No mandatory pit stops",
-        "Grid positions based on qualifying",
-        "Points awarded: 1st (8), 2nd (7), 3rd (6), 4th (5), 5th (4), 6th (3), 7th (2), 8th (1)",
-        "Race determines Sunday Grand Prix starting grid",
-        "Sprint race results count for championship points",
-        "Tire compounds: One free choice",
-        "Two practice sessions before Sprint",
-      ],
-    },
-    {
-      category: "POINT SYSTEM",
-      items: [
-        "1st Place: 25 points",
-        "2nd Place: 18 points",
-        "3rd Place: 15 points",
-        "4th Place: 12 points",
-        "5th Place: 10 points",
-        "6th Place: 8 points",
-        "7th Place: 6 points",
-        "8th Place: 4 points",
-        "9th Place: 2 points",
-        "10th Place: 1 point",
-        "Fastest Lap: 1 point (if in top 10)",
-        "Sprint Race: Additional points (1st-8th)",
-      ],
-    },
-    {
-      category: "PENALTIES & SANCTIONS",
-      items: [
-        "Time Penalty: 5, 10, or 15 seconds added to race time",
-        "Drive-Through: Drive through pit lane at speed limit",
-        "Stop-and-Go: Stop in pit box for 10 seconds, then proceed",
-        "Grid Penalty: Start from lower grid position",
-        "License Points: Super License penalty points accumulate",
-        "12 points in 12 months = one-race ban",
-        "Disqualification: Removed from race results",
-        "Exclusion: Banned from entire event",
-      ],
-    },
   ]
 
   return (
@@ -269,28 +226,38 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
         <HeroParallax products={products} customHeader={<F1RulesHeader />} />
       </div>
 
-      {/* Rules Section */}
+      {/* Rules and Regulations Section */}
       <motion.div
         ref={rulesRef}
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
         transition={{ duration: 0.8 }}
-        className="relative z-20 min-h-screen pt-10 pb-20 bg-background"
+        className="relative z-20 min-h-screen pt-20 pb-20 bg-background"
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-            {/* Left Side - Rules Cards */}
-            <div className="lg:col-span-2 space-y-6">
-              {rules.map((rule, index) => (
-                <RuleCard key={rule.category} rule={rule} index={index} />
-              ))}
-            </div>
+          {/* Rules and Regulations Heading */}
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="text-center pt-16 pb-16 mb-16"
+          >
+            <h2
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white mb-4"
+              style={{ fontFamily: "var(--font-orbitron)" }}
+            >
+              RULES & REGULATIONS
+            </h2>
+            <div className="w-32 h-1 bg-red-600 mx-auto"></div>
+          </motion.div>
 
-            {/* Right Side - 3D Car Model */}
-            <div className="lg:col-span-1 lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)]">
-              <F1Car3D />
-            </div>
+          {/* Rules Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
+            {rules.map((rule, index) => (
+              <RuleCometCard key={rule.category} rule={rule} index={index} />
+            ))}
           </div>
         </div>
       </motion.div>
@@ -308,57 +275,97 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
       >
         Back to Track
       </motion.button>
+
+      {/* Continue Button - Fixed */}
+      <motion.button
+        onClick={() => {
+          // Add your continue action here
+          console.log("Continue clicked")
+        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-8 right-8 z-30 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-sm border-2 border-red-500 uppercase tracking-widest transition-all duration-300 shadow-lg"
+        style={{ fontFamily: "var(--font-orbitron)" }}
+      >
+        Continue
+      </motion.button>
     </div>
   )
 }
 
-// Rule Card Component with Scroll Animation
-function RuleCard({ rule, index }: { rule: { category: string; items: string[] }; index: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "start center"],
-  })
-
-  const opacity = useTransform(scrollYProgress, [0, 1], [0, 1])
-  const y = useTransform(scrollYProgress, [0, 1], [50, 0])
-
+// Rule Comet Card Component
+function RuleCometCard({ 
+  rule, 
+  index 
+}: { 
+  rule: { 
+    category: string
+    description: string
+    image: string
+    items: string[] 
+  }
+  index: number 
+}) {
   return (
     <motion.div
-      ref={ref}
-      style={{
-        opacity,
-        y,
-      }}
-      className="bg-black/60 border border-red-500/30 rounded-sm p-6 hover:border-red-500/60 transition-all duration-500 backdrop-blur-sm"
+      initial={{ opacity: 0, y: 50 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ delay: index * 0.1, duration: 0.6 }}
     >
-      {/* Category Header */}
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-red-500/20">
-        <div className="w-1 h-8 bg-red-600"></div>
-        <h2
-          className="text-xl font-bold text-white uppercase tracking-wider"
-          style={{ fontFamily: "var(--font-orbitron)" }}
-        >
-          {rule.category}
-        </h2>
-      </div>
+      <CometCard className="h-full">
+        <div className="relative h-full bg-black/80 border border-red-500/30 rounded-2xl overflow-hidden backdrop-blur-sm">
+          {/* Image */}
+          <div className="relative h-48 w-full overflow-hidden">
+            <Image
+              src={rule.image}
+              alt={rule.category}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+          </div>
 
-      {/* Rules List */}
-      <ul className="space-y-3">
-        {rule.items.map((item, itemIndex) => (
-          <motion.li
-            key={itemIndex}
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ delay: itemIndex * 0.05 }}
-            className="flex items-start gap-3 text-gray-300 leading-relaxed"
-          >
-            <span className="text-red-600 font-bold mt-1 flex-shrink-0">▶</span>
-            <span>{item}</span>
-          </motion.li>
-        ))}
-      </ul>
+          {/* Content */}
+          <div className="p-6">
+            {/* Category Header */}
+            <div className="mb-4">
+              <div className="w-12 h-1 bg-red-600 mb-3"></div>
+              <h3
+                className="text-xl font-bold text-white uppercase tracking-wider mb-2"
+                style={{ fontFamily: "var(--font-orbitron)" }}
+              >
+                {rule.category}
+              </h3>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                {rule.description}
+              </p>
+            </div>
+
+            {/* Rules List */}
+            <ul className="space-y-2 mt-4">
+              {rule.items.slice(0, 3).map((item, itemIndex) => (
+                <li
+                  key={itemIndex}
+                  className="flex items-start gap-2 text-gray-400 text-xs leading-relaxed"
+                >
+                  <span className="text-red-600 font-bold mt-1 flex-shrink-0">▶</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+              {rule.items.length > 3 && (
+                <li className="text-red-500 text-xs font-semibold mt-2">
+                  +{rule.items.length - 3} more rules...
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+      </CometCard>
     </motion.div>
   )
 }
