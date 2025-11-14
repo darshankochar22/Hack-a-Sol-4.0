@@ -669,34 +669,32 @@ export default function F1CarFeaturesDashboard() {
                   speed: { label: "Speed (km/h)", color: "#FF0000" },
                   rpm: { label: "RPM (x100)", color: "#FF6B35" },
                 }}
-                className="h-96 w-full"
+                className="h-96"
               >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={speedChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="time" stroke="#888" />
-                    <YAxis yAxisId="left" stroke="#FF0000" />
-                    <YAxis yAxisId="right" orientation="right" stroke="#FF6B35" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Line 
-                      yAxisId="left"
-                      type="monotone" 
-                      dataKey="speed" 
-                      stroke="#FF0000" 
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line 
-                      yAxisId="right"
-                      type="monotone" 
-                      dataKey="rpm" 
-                      stroke="#FF6B35" 
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <LineChart data={speedChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="time" stroke="#888" />
+                  <YAxis yAxisId="left" stroke="#FF0000" />
+                  <YAxis yAxisId="right" orientation="right" stroke="#FF6B35" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="speed" 
+                    stroke="#FF0000" 
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="rpm" 
+                    stroke="#FF6B35" 
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
               </ChartContainer>
             </motion.div>
 
@@ -721,21 +719,19 @@ export default function F1CarFeaturesDashboard() {
                   sector2: { label: "Sector 2 (s)", color: "#FF6B35" },
                   sector3: { label: "Sector 3 (s)", color: "#0066FF" },
                 }}
-                className="h-96 w-full"
+                className="h-96"
               >
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={lapTimeChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="lap" stroke="#888" />
-                    <YAxis stroke="#888" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Area type="monotone" dataKey="duration" stackId="1" stroke="#FF0000" fill="#FF0000" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="sector1" stackId="2" stroke="#00FF88" fill="#00FF88" fillOpacity={0.4} />
-                    <Area type="monotone" dataKey="sector2" stackId="2" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.4} />
-                    <Area type="monotone" dataKey="sector3" stackId="2" stroke="#0066FF" fill="#0066FF" fillOpacity={0.4} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <AreaChart data={lapTimeChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="lap" stroke="#888" />
+                  <YAxis stroke="#888" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Area type="monotone" dataKey="duration" stackId="1" stroke="#FF0000" fill="#FF0000" fillOpacity={0.6} />
+                  <Area type="monotone" dataKey="sector1" stackId="2" stroke="#00FF88" fill="#00FF88" fillOpacity={0.4} />
+                  <Area type="monotone" dataKey="sector2" stackId="2" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.4} />
+                  <Area type="monotone" dataKey="sector3" stackId="2" stroke="#0066FF" fill="#0066FF" fillOpacity={0.4} />
+                </AreaChart>
               </ChartContainer>
             </motion.div>
 
@@ -753,25 +749,23 @@ export default function F1CarFeaturesDashboard() {
               >
                 Tire Temperature Heatmap
               </h2>
-              <div className="h-96 w-full">
-                <div className="w-full h-full flex flex-col gap-2 items-center justify-center">
-                  {tireHeatmap.map((row, rowIndex) => (
-                    <div key={rowIndex} className="flex gap-2 justify-center w-full flex-1">
-                      {row.map((value, colIndex) => (
-                        <motion.div
-                          key={colIndex}
-                          initial={{ opacity: 0, scale: 0 }}
-                          whileInView={{ opacity: 1, scale: 1 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: (rowIndex + colIndex) * 0.05 }}
-                          className={`flex-1 h-full ${getHeatmapColor(value, 100)} rounded-sm border border-black/50 flex items-center justify-center text-white font-bold text-xs transition-all duration-300 hover:scale-110`}
-                        >
-                          {Math.round(value)}°C
-                        </motion.div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-col gap-2">
+                {tireHeatmap.map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex gap-2 justify-center">
+                    {row.map((value, colIndex) => (
+                      <motion.div
+                        key={colIndex}
+                        initial={{ opacity: 0, scale: 0 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: (rowIndex + colIndex) * 0.05 }}
+                        className={`w-16 h-16 ${getHeatmapColor(value, 100)} rounded-sm border border-black/50 flex items-center justify-center text-white font-bold text-xs transition-all duration-300 hover:scale-110`}
+                      >
+                        {Math.round(value)}°C
+                      </motion.div>
+                    ))}
+                  </div>
+                ))}
               </div>
               <div className="flex justify-center gap-4 mt-6">
                 <div className="flex items-center gap-2">
@@ -817,23 +811,21 @@ export default function F1CarFeaturesDashboard() {
                     throttle: { label: "Throttle (%)", color: "#00FF88" },
                     brake: { label: "Brake (%)", color: "#FF4444" },
                   }}
-                  className="h-96 w-full"
+                  className="h-96"
                 >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={selectedTelemetryHistory.slice(-20).map((t, i) => ({
-                      time: i,
-                      throttle: (t.throttle || 0) * 100,
-                      brake: (t.brake || 0) * 100,
-                    }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis dataKey="time" stroke="#888" />
-                      <YAxis stroke="#888" />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar dataKey="throttle" fill="#00FF88" fillOpacity={0.8} />
-                      <Bar dataKey="brake" fill="#FF4444" fillOpacity={0.8} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <BarChart data={selectedTelemetryHistory.slice(-20).map((t, i) => ({
+                    time: i,
+                    throttle: (t.throttle || 0) * 100,
+                    brake: (t.brake || 0) * 100,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="time" stroke="#888" />
+                    <YAxis stroke="#888" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="throttle" fill="#00FF88" fillOpacity={0.8} />
+                    <Bar dataKey="brake" fill="#FF4444" fillOpacity={0.8} />
+                  </BarChart>
                 </ChartContainer>
               </motion.div>
             )}
