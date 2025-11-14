@@ -71,6 +71,23 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
             position: data.position,
             rotation: data.rotation,
             speed: data.speed,
+            score: data.score || 0,
+            laps: data.laps || 0,
+            timestamp: data.timestamp,
+          },
+        }));
+      }
+    });
+
+    // Handle player performance updates
+    socket.on("playerPerformanceUpdate", (data) => {
+      if (data.playerId !== playerId) {
+        setPlayers((prev) => ({
+          ...prev,
+          [data.playerId]: {
+            ...prev[data.playerId],
+            score: data.score || 0,
+            laps: data.laps || 0,
             timestamp: data.timestamp,
           },
         }));
@@ -87,6 +104,8 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
             position: data.position || [0, 0.3, 0],
             rotation: data.rotation || { x: 0, y: 0, z: 0, w: 1 },
             speed: 0,
+            score: data.score || 0,
+            laps: data.laps || 0,
             timestamp: Date.now(),
           },
         }));
@@ -118,6 +137,8 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
             position: player.position || [0, 0.3, 0],
             rotation: player.rotation || { x: 0, y: 0, z: 0, w: 1 },
             speed: player.speed || 0,
+            score: player.score || 0,
+            laps: player.laps || 0,
             timestamp: player.timestamp || Date.now(),
           };
         }
@@ -177,7 +198,7 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
 
   // Send player position update (throttled)
   const sendPositionUpdate = useCallback(
-    (position, rotation, speed) => {
+    (position, rotation, speed, score, laps) => {
       if (!socketRef.current || !isConnected || !roomId) return;
 
       const now = Date.now();
@@ -200,7 +221,25 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
             }
           : { x: 0, y: 0, z: 0, w: 1 },
         speed: speed || 0,
+        score: score !== undefined ? score : null,
+        laps: laps !== undefined ? laps : null,
         timestamp: now,
+      });
+    },
+    [playerId, roomId, isConnected]
+  );
+
+  // Send player performance update (score, laps)
+  const sendPerformanceUpdate = useCallback(
+    (score, laps) => {
+      if (!socketRef.current || !isConnected || !roomId) return;
+
+      socketRef.current.emit("playerPerformanceUpdate", {
+        playerId,
+        roomId,
+        score: score !== undefined ? score : null,
+        laps: laps !== undefined ? laps : null,
+        timestamp: Date.now(),
       });
     },
     [playerId, roomId, isConnected]
@@ -220,6 +259,7 @@ export const useMultiplayer = (playerId, onPlayersUpdate, serverUrl) => {
     joinRoom,
     leaveRoom,
     sendPositionUpdate,
+    sendPerformanceUpdate,
     serverUrl: currentServerUrl,
   };
 };

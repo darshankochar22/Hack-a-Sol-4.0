@@ -88,12 +88,14 @@ export function F1Car({ thirdPerson, onPositionUpdate, sendPositionUpdate }) {
       onPositionUpdate(positionData);
     }
 
-    // Send to multiplayer server
+    // Send to multiplayer server (performance data will be added by parent)
     if (sendPositionUpdate) {
       sendPositionUpdate(
         positionData.position,
         quaternion,
-        positionData.speed
+        positionData.speed,
+        null, // score - will be set by parent
+        null  // laps - will be set by parent
       );
     }
   });

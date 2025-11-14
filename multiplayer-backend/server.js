@@ -102,6 +102,8 @@ app.get("/api/rooms/:roomId", (req, res) => {
       playerId: p.playerId,
       position: p.position,
       speed: p.speed,
+      score: p.score || 0,
+      laps: p.laps || 0,
       lastUpdate: p.timestamp,
     })),
   });
@@ -170,6 +172,8 @@ io.on("connection", (socket) => {
         position: [0, 0.3, 0],
         rotation: { x: 0, y: 0, z: 0, w: 1 },
         speed: 0,
+        score: 0,
+        laps: 0,
         timestamp: Date.now(),
       });
 
@@ -228,18 +232,32 @@ io.on("connection", (socket) => {
   // Handle player position updates
   socket.on(
     "playerPositionUpdate",
-    ({ playerId, roomId, position, rotation, speed, timestamp }) => {
+    ({
+      playerId,
+      roomId,
+      position,
+      rotation,
+      speed,
+      timestamp,
+      score,
+      laps,
+    }) => {
       if (!playerId || !roomId) return;
 
       const room = racingRooms.get(roomId);
       if (!room) return;
 
-      // Update player data
+      // Get existing player data to preserve performance metrics
+      const existingPlayer = room.get(playerId) || {};
+
+      // Update player data with performance metrics
       room.set(playerId, {
         playerId,
         position: position || [0, 0.3, 0],
         rotation: rotation || { x: 0, y: 0, z: 0, w: 1 },
         speed: speed || 0,
+        score: score !== undefined ? score : existingPlayer.score || 0,
+        laps: laps !== undefined ? laps : existingPlayer.laps || 0,
         timestamp: timestamp || Date.now(),
       });
 
@@ -250,6 +268,39 @@ io.on("connection", (socket) => {
         position,
         rotation,
         speed,
+        score: score !== undefined ? score : existingPlayer.score || 0,
+        laps: laps !== undefined ? laps : existingPlayer.laps || 0,
+        timestamp,
+      });
+    }
+  );
+
+  // Handle player performance updates (score, laps)
+  socket.on(
+    "playerPerformanceUpdate",
+    ({ playerId, roomId, score, laps, timestamp }) => {
+      if (!playerId || !roomId) return;
+
+      const room = racingRooms.get(roomId);
+      if (!room) return;
+
+      const existingPlayer = room.get(playerId) || {};
+
+      // Update performance metrics
+      room.set(playerId, {
+        ...existingPlayer,
+        playerId,
+        score: score !== undefined ? score : existingPlayer.score || 0,
+        laps: laps !== undefined ? laps : existingPlayer.laps || 0,
+        timestamp: timestamp || Date.now(),
+      });
+
+      // Broadcast performance update
+      const roomKey = `race_${roomId}`;
+      socket.to(roomKey).emit("playerPerformanceUpdate", {
+        playerId,
+        score: score !== undefined ? score : existingPlayer.score || 0,
+        laps: laps !== undefined ? laps : existingPlayer.laps || 0,
         timestamp,
       });
     }

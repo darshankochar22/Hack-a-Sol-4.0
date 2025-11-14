@@ -6,10 +6,12 @@ import { Physics } from "@react-three/cannon";
 import { useState, useEffect, useMemo } from "react";
 import { useMultiplayer } from "./hooks/useMultiplayer";
 import { useScoring } from "./hooks/useScoring";
+import { useBetting } from "./hooks/useBetting";
 import { MultiplayerLeaderboard } from "./components/MultiplayerLeaderboard";
 import { ServerConnection } from "./components/ServerConnection";
 import { ScoreDisplay } from "./components/ScoreDisplay";
 import { LapNotification } from "./components/LapNotification";
+import { BettingPanel } from "./components/BettingPanel";
 
 function App() {
   const [speed, setSpeed] = useState(0);
@@ -50,6 +52,7 @@ function App() {
     joinRoom,
     leaveRoom,
     sendPositionUpdate,
+    sendPerformanceUpdate,
     serverUrl: currentServerUrl,
   } = useMultiplayer(
     playerId,
@@ -59,6 +62,23 @@ function App() {
     },
     serverUrl
   );
+
+  // Initialize betting system
+  const bettingHook = useBetting(
+    playerId,
+    players,
+    score,
+    totalLaps,
+    speed,
+    position
+  );
+
+  // Send performance updates when score or laps change
+  useEffect(() => {
+    if (isConnected && sendPerformanceUpdate) {
+      sendPerformanceUpdate(score, totalLaps);
+    }
+  }, [score, totalLaps, isConnected, sendPerformanceUpdate]);
 
   // Handle server URL change
   const handleServerChange = (newServerUrl) => {
@@ -94,6 +114,15 @@ function App() {
     setSpeed(data.speed);
   };
 
+  // Create a wrapper for sendPositionUpdate that includes performance data
+  const sendPositionUpdateWithPerformance = useMemo(() => {
+    return (position, rotation, speed) => {
+      if (sendPositionUpdate) {
+        sendPositionUpdate(position, rotation, speed, score, totalLaps);
+      }
+    };
+  }, [sendPositionUpdate, score, totalLaps]);
+
   return (
     <>
       <Canvas shadows>
@@ -102,7 +131,7 @@ function App() {
             onLapComplete={handleLapComplete}
             onPositionUpdate={handlePositionUpdate}
             players={players}
-            sendPositionUpdate={sendPositionUpdate}
+            sendPositionUpdate={sendPositionUpdateWithPerformance}
           />
         </Physics>
       </Canvas>
@@ -141,6 +170,19 @@ function App() {
           myPosition={position}
           mySpeed={speed}
           players={players}
+        />
+      )}
+
+      {/* Betting Panel */}
+      {isConnected && (
+        <BettingPanel
+          playerId={playerId}
+          players={players}
+          myScore={score}
+          myLaps={totalLaps}
+          mySpeed={speed}
+          myPosition={position}
+          bettingHook={bettingHook}
         />
       )}
 
