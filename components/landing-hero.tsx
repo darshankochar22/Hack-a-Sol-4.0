@@ -98,7 +98,7 @@ export default function LandingHero() {
             className="pointer-events-auto px-10 py-4 rounded-full border border-white/30 bg-black/60 text-white tracking-[0.5em] text-sm font-semibold uppercase transition hover:border-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70"
             style={{ fontFamily: "var(--font-orbitron)" }}
           >
-            PLAY NOW
+            GET STARTED
           </button>
         </div>
       </section>

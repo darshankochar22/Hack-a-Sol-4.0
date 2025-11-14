@@ -4,6 +4,7 @@ import { useRef } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import Image from "next/image"
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import { HeroParallax } from "@/components/ui/hero-parallax"
 import { CometCard } from "@/components/ui/comet-card"
 
@@ -42,12 +43,17 @@ function F1RulesHeader() {
 }
 
 export default function F1RulesRegulations({ onBack }: F1RulesProps) {
+  const router = useRouter()
   const rulesRef = useRef<HTMLDivElement>(null)
 
   const handleBack = () => {
     if (onBack) {
       onBack()
     }
+  }
+
+  const handleContinue = () => {
+    router.push("/dashboard")
   }
 
   // Products for HeroParallax - using racer images from assets
@@ -278,10 +284,7 @@ export default function F1RulesRegulations({ onBack }: F1RulesProps) {
 
       {/* Continue Button - Fixed */}
       <motion.button
-        onClick={() => {
-          // Add your continue action here
-          console.log("Continue clicked")
-        }}
+        onClick={handleContinue}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
