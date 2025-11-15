@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "node": "hardhat node",
+    "node:fork": "hardhat node --fork https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
   },
   "keywords": [],
   "author": "",

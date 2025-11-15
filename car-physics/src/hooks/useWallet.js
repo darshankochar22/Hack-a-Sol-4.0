@@ -27,8 +27,19 @@ export function useWallet() {
       const balanceEth = ethers.formatEther(balanceWei);
       setBalance(parseFloat(balanceEth));
     } catch (error) {
-      console.error("Error fetching balance:", error);
-      setBalance(null);
+      // Handle RPC errors gracefully - don't set balance to null
+      if (
+        error.message?.includes("RPC endpoint") ||
+        error.code === -32002 ||
+        error.message?.includes("too many errors")
+      ) {
+        // Don't set balance to null, keep last known value
+        return;
+      }
+      // Only set to null if it's a different type of error
+      if (!error.message?.includes("RPC")) {
+        setBalance(null);
+      }
     }
   }, [provider, account]);
 
@@ -92,27 +103,44 @@ export function useWallet() {
       if (accounts.length > 0) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        const network = await provider.getNetwork();
 
-        setAccount(accounts[0]);
-        setProvider(provider);
-        setSigner(signer);
-        setIsConnected(true);
-        setChainId(Number(network.chainId));
+        try {
+          const network = await provider.getNetwork();
+          const networkChainId = Number(network.chainId);
 
-        // Fetch initial balance
-        await fetchBalance();
+          setAccount(accounts[0]);
+          setProvider(provider);
+          setSigner(signer);
+          setIsConnected(true);
+          setChainId(networkChainId);
 
-        // Listen for account changes
-        window.ethereum.on("accountsChanged", handleAccountsChanged);
-        window.ethereum.on("chainChanged", handleChainChanged);
+          // Fetch initial balance (with error handling)
+          try {
+            await fetchBalance();
+          } catch (balanceError) {
+            // Continue even if balance fetch fails
+          }
+
+          // Listen for account changes
+          window.ethereum.on("accountsChanged", handleAccountsChanged);
+          window.ethereum.on("chainChanged", handleChainChanged);
+        } catch (networkError) {
+          // Handle RPC errors when getting network info
+          if (
+            networkError.message?.includes("RPC endpoint") ||
+            networkError.code === -32002
+          ) {
+            setIsConnecting(false);
+            return;
+          }
+          throw networkError; // Re-throw if it's a different error
+        }
       }
     } catch (error) {
-      console.error("Error connecting wallet:", error);
       if (error.code === 4001) {
-        alert("Please connect to MetaMask.");
+        // User rejected - silent fail
       } else {
-        alert("Error connecting wallet: " + error.message);
+        // Other errors - silent fail
       }
     } finally {
       setIsConnecting(false);
@@ -131,21 +159,39 @@ export function useWallet() {
           if (accounts.length > 0) {
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
-            const network = await provider.getNetwork();
 
-            setAccount(accounts[0]);
-            setProvider(provider);
-            setSigner(signer);
-            setIsConnected(true);
-            setChainId(Number(network.chainId));
+            try {
+              const network = await provider.getNetwork();
+              const networkChainId = Number(network.chainId);
 
-            await fetchBalance();
+              setAccount(accounts[0]);
+              setProvider(provider);
+              setSigner(signer);
+              setIsConnected(true);
+              setChainId(networkChainId);
 
-            window.ethereum.on("accountsChanged", handleAccountsChanged);
-            window.ethereum.on("chainChanged", handleChainChanged);
+              // Fetch initial balance (with error handling)
+              try {
+                await fetchBalance();
+              } catch (balanceError) {
+                // Continue even if balance fetch fails
+              }
+
+              window.ethereum.on("accountsChanged", handleAccountsChanged);
+              window.ethereum.on("chainChanged", handleChainChanged);
+            } catch (networkError) {
+              // Handle RPC errors when getting network info
+              if (
+                networkError.message?.includes("RPC endpoint") ||
+                networkError.code === -32002
+              ) {
+                // Don't set connection state if RPC is failing
+                return;
+              }
+            }
           }
         } catch (error) {
-          console.error("Error checking wallet connection:", error);
+          // Silent fail on connection check
         }
       }
     };
@@ -163,11 +209,15 @@ export function useWallet() {
     };
   }, [handleAccountsChanged, handleChainChanged, fetchBalance]);
 
-  // Refresh balance periodically
+  // Refresh balance periodically (with longer interval to avoid RPC overload)
   useEffect(() => {
     if (isConnected && account) {
+      // Initial fetch
       fetchBalance();
-      const interval = setInterval(fetchBalance, 10000); // Refresh every 10 seconds
+      // Refresh every 30 seconds (longer interval to avoid RPC errors)
+      const interval = setInterval(() => {
+        fetchBalance();
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [isConnected, account, fetchBalance]);
