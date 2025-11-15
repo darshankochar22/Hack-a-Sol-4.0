@@ -1,10 +1,10 @@
 <table style="border-collapse: collapse; border: none;">
 <tr style="border: none;">
 <td style="vertical-align: middle; border: none;">
-  <img src="public/Logo.jpg" alt="Logo" width="180">
+  <img src="public/Logo.jpg" alt="Logo" width="200">
 </td>
-<td style="vertical-align: middle; border: none; padding-left: 24px;">
-  <h1 style="margin: 0;">The Grid Experience</h1>
+<td style="vertical-align: middle; border: none; padding-left: 15px;">
+  <span style="font-size: 32px; font-weight: 700; margin: 0;">The Grid Experience</span>
 </td>
 </tr>
 </table>
