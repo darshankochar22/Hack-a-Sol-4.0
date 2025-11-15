@@ -1,13 +1,12 @@
 <table style="border-collapse: collapse; border: none;">
 <tr style="border: none;">
 <td style="vertical-align: middle; border: none;">
-  <img src="public/f1-logo.png" alt="Logo" width="200">
+  <img src="public/Logo.jpg" alt="Logo" width="200">
 </td>
 <td style="vertical-align: middle; border: none; padding-left: 15px;">
   <h1 style="margin: 0;">The Grid Experience</h1>
   <p style="margin: 5px 0 0 0; font-size: 16px; color: #666;">
-    Decentralized F1 Racing on the Blockchain<br>
-    Smart Contracts. Real Racing. True Ownership.
+    Don't just Race - Bet, Trade and Speculate.
   </p>
 </td>
 </tr>
