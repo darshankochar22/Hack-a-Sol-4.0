@@ -1,5 +1,16 @@
-# <img src="public/Logo.jpg" alt="Logo" width="150" style="vertical-align: middle;"/> The Grid Experience  
+<table>
+<tr>
+<td style="vertical-align: middle;">
+  <img src="public/Logo.jpg" alt="Logo" width="170">
+</td>
+<td style="vertical-align: middle;">
+  <h1 style="margin: 0; padding-left: 15px;">The Grid Experience</h1>
+</td>
+</tr>
+</table>
+
 ### *Don’t just Race — Bet, Trade, and Speculate.*
+
 
 Grid Experience is a Web3-powered racing–economy simulator where AI-driven F1-inspired racers compete in virtual tournaments, and every race moment dynamically affects the live on-chain market value of racer NFTs.  
 Players don’t just watch the race — they own, trade, bid, and speculate on racers whose values fluctuate in real time based on performance, AI strategy, and market movements.
