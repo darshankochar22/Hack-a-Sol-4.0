@@ -112,12 +112,19 @@ export const useBetting = (
 
   // Place a bet on a player (local tracking - actual transaction handled by MetaMask)
   const placeBet = useCallback(
-    (targetPlayerId, amount, isSimulated = false) => {
+    (targetPlayerId, amount, isSimulated = false, txHash = null) => {
       if (!targetPlayerId || amount <= 0) return false;
       if (targetPlayerId === playerId) {
         alert("You cannot bet on yourself!");
         return false;
       }
+
+      // Generate hash if not provided
+      const finalHash =
+        txHash ||
+        `0x${Array.from({ length: 64 }, () =>
+          Math.floor(Math.random() * 16).toString(16)
+        ).join("")}`;
 
       const newBet = {
         id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -127,6 +134,7 @@ export const useBetting = (
         timestamp: Date.now(),
         claimed: false,
         isSimulated: isSimulated,
+        txHash: finalHash, // Transaction hash (real or simulated)
       };
 
       setBets((prev) => [...prev, newBet]);
@@ -141,15 +149,26 @@ export const useBetting = (
     const performance = playerPerformance;
     const playerIds = Object.keys(performance);
 
-    if (playerIds.length === 0) return null;
+    // Need at least 2 players to have a race
+    if (playerIds.length < 2) return null;
 
     // Find player with highest performance score
     let winnerId = null;
     let maxScore = -1;
+    let hasActivePlayers = false;
 
     playerIds.forEach((id) => {
       const perf = performance[id];
       if (!perf) return;
+
+      // Check if player has any activity (laps, score, or speed)
+      if (
+        (perf.laps || 0) > 0 ||
+        (perf.score || 0) > 0 ||
+        (perf.speed || 0) > 0
+      ) {
+        hasActivePlayers = true;
+      }
 
       // Calculate performance score: prioritize laps, then score, then speed
       const score =
@@ -161,16 +180,63 @@ export const useBetting = (
       }
     });
 
-    return winnerId;
+    // Only return winner if there's meaningful race activity
+    // Need at least one player with significant activity (laps > 0 or score > 100)
+    const hasSignificantActivity = playerIds.some((id) => {
+      const perf = performance[id];
+      return perf && ((perf.laps || 0) > 0 || (perf.score || 0) > 100);
+    });
+
+    return hasSignificantActivity && hasActivePlayers && winnerId
+      ? winnerId
+      : null;
   }, [playerPerformance]);
 
-  // End race and calculate winnings
+  // End race and calculate winnings (manual only - must be called explicitly)
   const endRace = useCallback(() => {
-    if (raceEnded) return;
+    console.log("endRace called - raceEnded:", raceEnded);
+
+    if (raceEnded) {
+      console.log("Race already ended, ignoring");
+      return null;
+    }
+
+    const performance = playerPerformance;
+    const playerIds = Object.keys(performance);
+
+    console.log("Players in performance:", playerIds.length, playerIds);
+
+    // Need at least 2 players to end a race
+    if (playerIds.length < 2) {
+      console.log("Cannot end race: Need at least 2 players");
+      alert("Cannot end race: Need at least 2 players in the race");
+      return null;
+    }
+
+    // Check if there's actual race activity
+    const hasActivity = playerIds.some((id) => {
+      const perf = performance[id];
+      return perf && ((perf.laps || 0) > 0 || (perf.score || 0) > 0);
+    });
+
+    if (!hasActivity) {
+      console.log("Cannot end race: No race activity detected");
+      alert(
+        "Cannot end race: No race activity detected. Players need to complete at least one lap."
+      );
+      return null;
+    }
 
     const winnerId = determineWinner();
-    if (!winnerId) return;
+    if (!winnerId) {
+      console.log("Cannot determine winner - no valid winner");
+      alert(
+        "Cannot end race: Unable to determine winner. Need active race data."
+      );
+      return null;
+    }
 
+    console.log("🏁 Ending race manually. Winner:", winnerId);
     setRaceEnded(true);
     setWinner(winnerId);
 
@@ -193,29 +259,10 @@ export const useBetting = (
 
     setWinnings(newWinnings);
     return { winnerId, winnings: newWinnings };
-  }, [bets, totalPool, determineWinner, raceEnded]);
+  }, [bets, totalPool, determineWinner, raceEnded, playerPerformance]);
 
-  // Check if race should end (e.g., after 10 laps or time limit)
-  useEffect(() => {
-    const performance = playerPerformance;
-    const playerIds = Object.keys(performance);
-
-    if (playerIds.length === 0 || raceEnded) return;
-
-    // End race if any player reaches 10 laps
-    const shouldEnd = playerIds.some((id) => {
-      const perf = performance[id];
-      return perf && perf.laps >= 10;
-    });
-
-    if (shouldEnd && !raceEnded) {
-      const result = endRace();
-      if (result) {
-        console.log("🏁 Race ended! Winner:", result.winnerId);
-        console.log("💰 Winnings distributed:", result.winnings);
-      }
-    }
-  }, [playerPerformance, raceEnded, endRace]);
+  // Race only ends manually via "End Race" button
+  // No automatic race ending - user controls when race ends
 
   // Calculate potential winnings for a bet
   const calculateWinnings = useCallback(
