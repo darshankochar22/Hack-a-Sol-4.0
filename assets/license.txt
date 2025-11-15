@@ -1,0 +1,11 @@
+Model Information:
+* title:	Formula 1 2022 Concept Car
+* source:	https://sketchfab.com/3d-models/formula-1-2022-concept-car-5e7f6336405042f88f340864c5919380
+* author:	MattsActuallyUsefulModels (https://sketchfab.com/MattsActuallyUsefulModels)
+
+Model License:
+* license type:	CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)
+* requirements:	Author must be credited. No commercial use. Modified versions must have the same license.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Formula 1 2022 Concept Car" (https://sketchfab.com/3d-models/formula-1-2022-concept-car-5e7f6336405042f88f340864c5919380) by MattsActuallyUsefulModels (https://sketchfab.com/MattsActuallyUsefulModels) licensed under CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)
