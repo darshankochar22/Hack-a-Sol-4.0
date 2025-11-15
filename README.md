@@ -4,6 +4,12 @@ TurboTradeX is a Web3-powered racing–economy simulator where AI-driven F1-insp
 Players don’t just watch the race — they own, trade, bid, and speculate on racers whose values fluctuate in real time based on performance, AI strategy, and market movements.
 
 Think Formula 1 × Stock Market × GameFi.
+## 📸 Screenshots of the Web Page
+
+![Web Page](public/Img1.jpeg)
+![Web Page](public/Img2.jpeg)
+![Web Page](public/Img3.jpeg)
+![Web Page](public/Img4.jpeg)
 
 ---
 
@@ -252,12 +258,6 @@ This merges Web3 trading with global motorsports analytics.
 
 ---
 
-## 📸 Screenshots of the Web Page
-
-![Web Page](public/Img1.jpeg)
-![Web Page](public/Img2.jpeg)
-![Web Page](public/Img3.jpeg)
-![Web Page](public/Img4.jpeg)
 
 
 ---
