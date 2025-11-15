@@ -11,9 +11,9 @@ export function F1RacingScene({
   competitors = [], // Array of competitor data
   onCompetitorUpdate, // Callback for bot updates
 }) {
-  const [thirdPerson, setThirdPerson] = useState(true);
-  const cameraPosition = useMemo(() => [-8, 5, 8], []);
-  const lastCheckpointRef = useRef(0);
+  const [thirdPerson, setThirdPerson] = useState(true); // Start with 3D third-person camera
+  const cameraPosition = useMemo(() => [0, 5, 10], []); // Default 3D camera position
+  const lapCountRef = useRef({}); // Track laps for each car - { tokenId: { lastZ, laps, crossedStart } }
   
   // Filter bots from competitors
   const botCompetitors = useMemo(() => {
@@ -31,18 +31,63 @@ export function F1RacingScene({
     return () => window.removeEventListener("keydown", keydownHandler);
   }, []);
 
+  // Shared lap tracking function for all cars
+  const trackLapCompletion = useCallback((data) => {
+    const position = data.position;
+    const tokenId = data.tokenId;
+    
+    if (position && position[2] !== undefined && tokenId) {
+      const currentZ = position[2];
+      
+      // Initialize checkpoint tracking for this car
+      if (!lapCountRef.current[tokenId]) {
+        lapCountRef.current[tokenId] = { lastZ: currentZ, laps: 0, crossedStart: false };
+      }
+      
+      const carLapData = lapCountRef.current[tokenId];
+      
+      // Check if car crossed start line (z=14.5) going forward
+      // Start line is at z=15, track goes from z=15 down to z=-15 and back to z=15
+      if (!carLapData.crossedStart && currentZ >= 14.5) {
+        // Car just crossed start line going forward
+        carLapData.crossedStart = true;
+      } else if (carLapData.crossedStart && currentZ < 13) {
+        // Car went past start line (now behind it)
+        carLapData.crossedStart = false;
+      } else if (carLapData.crossedStart && carLapData.lastZ < 14.5 && currentZ >= 14.5) {
+        // Car crossed start line again (completed a lap)
+        carLapData.laps++;
+        console.log(`🏁 Car ${tokenId} (${data.name || 'Unknown'}) completed lap ${carLapData.laps}`);
+        
+        // Trigger lap complete callback
+        if (onLapComplete) {
+          onLapComplete({ tokenId, lap: carLapData.laps });
+        }
+      }
+      
+      carLapData.lastZ = currentZ;
+    }
+  }, [onLapComplete]);
+
+  // Handle player car position updates
   const handleCarPositionUpdate = useCallback((data) => {
     // Forward to parent
     if (onPositionUpdate) {
       onPositionUpdate(data);
     }
+    // Track lap completion
+    trackLapCompletion(data);
+  }, [onPositionUpdate, trackLapCompletion]);
 
-    // Track position for lap detection (if needed in future)
-    const position = data.position;
-    if (position && position[2] !== undefined) {
-      lastCheckpointRef.current = position[2];
+  // Handle bot car position updates
+  const handleBotPositionUpdate = useCallback((data) => {
+    // Forward to competitor update
+    if (onCompetitorUpdate) {
+      onCompetitorUpdate(data);
     }
-  }, [onPositionUpdate]);
+    // Track lap completion
+    trackLapCompletion(data);
+  }, [onCompetitorUpdate, trackLapCompletion]);
 
   return (
     <Suspense fallback={null}>
@@ -52,6 +97,7 @@ export function F1RacingScene({
       <directionalLight position={[-10, 5, -5]} intensity={0.5} />
       <hemisphereLight intensity={0.4} />
 
+      {/* Camera - 3D third-person view following player car */}
       <PerspectiveCamera
         makeDefault
         position={cameraPosition}
@@ -60,19 +106,31 @@ export function F1RacingScene({
 
       <F1Track />
       
-      {/* Player Car (can be AI or manual) */}
-      {competitors.find(c => c.isPlayer) && (
+      {/* Player Car - manual control (not AI) */}
+      {competitors.find(c => c.isPlayer) ? (
         <F1Car 
           thirdPerson={thirdPerson} 
           onPositionUpdate={handleCarPositionUpdate} 
           carType={carType}
           startFromTrack={true}
-          isAI={true} // Make player car AI-controlled too
+          isAI={false} // Player car is manually controlled
           aggressiveness={competitors.find(c => c.isPlayer)?.aggressiveness || 55}
           consistency={competitors.find(c => c.isPlayer)?.consistency || 60}
-          startOffset={0} // Player starts in pole position
+          startOffset={0} // All cars start from same position
           tokenId={competitors.find(c => c.isPlayer)?.tokenId}
           name={competitors.find(c => c.isPlayer)?.name}
+        />
+      ) : (
+        // If no player in competitors, render a default player car
+        <F1Car 
+          thirdPerson={thirdPerson} 
+          onPositionUpdate={handleCarPositionUpdate} 
+          carType={carType}
+          startFromTrack={true}
+          isAI={false} // Player car is manually controlled
+          startOffset={0}
+          tokenId={1}
+          name="Player"
         />
       )}
 
@@ -85,11 +143,12 @@ export function F1RacingScene({
           aggressiveness={bot.aggressiveness || 50}
           consistency={bot.consistency || 50}
           carType={bot.carType || "mercedes"}
-          startOffset={index + 1} // Staggered start (1, 2, 3, 4...)
-          onPositionUpdate={onCompetitorUpdate}
+          startOffset={0} // All cars start from same position
+          onPositionUpdate={handleBotPositionUpdate}
         />
       ))}
     </Suspense>
   );
 }
+
 

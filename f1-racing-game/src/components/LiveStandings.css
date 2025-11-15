@@ -2,16 +2,63 @@
   position: fixed;
   top: 80px;
   right: 20px;
-  width: 400px;
+  width: 600px;
   max-height: calc(100vh - 100px);
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(10, 10, 10, 0.95);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(255, 0, 0, 0.3);
   border-radius: 12px;
   padding: 16px;
   z-index: 100;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.standings-toggle-btn {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: 8px;
+  color: #ff0000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(255, 0, 0, 0.2);
+}
+
+.standings-toggle-btn:hover {
+  background: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 0, 0, 0.3);
+}
+
+.standings-toggle-btn.panel-visible {
+  right: 640px;
+}
+
+@media (max-width: 1200px) {
+  .standings-toggle-btn.panel-visible {
+    right: 540px;
+  }
 }
 
 .standings-header {
@@ -20,13 +67,42 @@
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom: 1px solid rgba(255, 0, 0, 0.2);
 }
 
 .standings-header h3 {
   margin: 0;
-  font-size: 18px;
-  color: #f8fafc;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+}
+
+.standings-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.close-standings-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: 4px;
+  color: #ff0000;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.close-standings-btn:hover {
+  background: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.5);
 }
 
 .race-timer {
@@ -38,16 +114,19 @@
 
 .timer-label {
   font-size: 10px;
-  color: #94a3b8;
+  color: #888888;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-family: 'Orbitron', 'Courier New', monospace;
 }
 
 .timer-value {
   font-size: 20px;
   font-weight: 700;
-  color: #22c55e;
-  font-family: 'Orbitron', monospace;
+  color: #ff0000;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+  letter-spacing: 1px;
 }
 
 .standings-table {
@@ -58,41 +137,46 @@
 
 .standings-row {
   display: grid;
-  grid-template-columns: 50px 1fr 80px 80px 60px 60px;
+  grid-template-columns: 60px 1.5fr 100px 100px 80px 80px;
   gap: 8px;
   padding: 8px 12px;
   border-radius: 6px;
   align-items: center;
   font-size: 13px;
   transition: all 0.2s;
+  background: rgba(20, 20, 20, 0.5);
+  border: 1px solid rgba(255, 0, 0, 0.1);
 }
 
 .standings-row.header {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(255, 0, 0, 0.1);
   font-weight: 600;
-  color: #94a3b8;
+  color: #888888;
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: 0.5px;
   padding: 10px 12px;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  border: 1px solid rgba(255, 0, 0, 0.2);
 }
 
 .standings-row:not(.header):hover {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(255, 0, 0, 0.1);
+  border-color: rgba(255, 0, 0, 0.3);
 }
 
 .standings-row.player {
-  background: rgba(34, 197, 94, 0.15);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(255, 0, 0, 0.15);
+  border: 1px solid rgba(255, 0, 0, 0.3);
 }
 
 .standings-row.podium {
-  background: rgba(251, 191, 36, 0.1);
+  background: rgba(255, 215, 0, 0.1);
 }
 
 .standings-row.podium.position-1 {
-  background: rgba(251, 191, 36, 0.2);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(255, 215, 0, 0.2);
+  border: 1px solid rgba(255, 215, 0, 0.4);
 }
 
 .col-pos {
@@ -108,18 +192,21 @@
 }
 
 .position-1 {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
+  background: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .position-2 {
-  background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
+  background: rgba(192, 192, 192, 0.3);
+  color: #c0c0c0;
+  text-shadow: 0 0 10px rgba(192, 192, 192, 0.5);
 }
 
 .position-3 {
-  background: rgba(180, 83, 9, 0.2);
-  color: #b45309;
+  background: rgba(205, 127, 50, 0.3);
+  color: #cd7f32;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.5);
 }
 
 .col-name {
@@ -129,26 +216,30 @@
 }
 
 .car-name {
-  color: #e2e8f0;
+  color: #ffffff;
   font-weight: 500;
+  font-family: 'Orbitron', 'Courier New', monospace;
 }
 
 .player-badge {
   display: inline-block;
   padding: 2px 6px;
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
+  background: rgba(255, 0, 0, 0.2);
+  color: #ff0000;
+  border: 1px solid rgba(255, 0, 0, 0.3);
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  letter-spacing: 1px;
 }
 
 .col-speed,
 .col-distance,
 .col-time {
-  color: #cbd5e1;
-  font-family: 'Courier New', monospace;
+  color: #ffffff;
+  font-family: 'Orbitron', 'Courier New', monospace;
   font-size: 12px;
 }
 
@@ -159,27 +250,42 @@
 .points-value {
   display: inline-block;
   padding: 4px 8px;
-  background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
+  background: rgba(255, 0, 0, 0.2);
+  color: #ff0000;
+  border: 1px solid rgba(255, 0, 0, 0.3);
   border-radius: 4px;
   font-weight: 600;
   font-size: 12px;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
 }
 
 .points-pending {
-  color: #64748b;
+  color: #888888;
   font-size: 12px;
+  font-family: 'Orbitron', 'Courier New', monospace;
 }
 
 @media (max-width: 1200px) {
   .live-standings {
-    width: 350px;
+    width: 500px;
     font-size: 12px;
   }
 
   .standings-row {
-    grid-template-columns: 40px 1fr 70px 70px 50px 50px;
+    grid-template-columns: 50px 1.2fr 90px 90px 70px 70px;
     font-size: 11px;
+  }
+}
+
+@media (max-width: 768px) {
+  .live-standings {
+    width: calc(100vw - 40px);
+    right: 20px;
+  }
+
+  .standings-toggle-btn.panel-visible {
+    right: calc(100vw - 20px);
   }
 }
 

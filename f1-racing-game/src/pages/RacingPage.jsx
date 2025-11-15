@@ -29,16 +29,21 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
     endRace,
     updateRaceProgress,
     updateCompetitor,
+    handleLapComplete,
     setSelectedCar,
   } = useRace();
 
   const [raceData, setRaceData] = useState({});
   const [showRaceSetup, setShowRaceSetup] = useState(false);
 
-  const handleLapComplete = useCallback(() => {
-    // Lap completion is now tracked via distance/time
-    console.log("Lap completed");
-  }, []);
+  // Lap completion handler - forwards to race context
+  const onLapComplete = useCallback((data) => {
+    // Forward lap completion to race context
+    if (handleLapComplete) {
+      handleLapComplete(data);
+    }
+    console.log("Lap completed:", data);
+  }, [handleLapComplete]);
 
   const handleStartRace = useCallback(
     (config) => {
@@ -205,7 +210,7 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
         >
           <Physics broadphase="SAP" gravity={[0, -9.81, 0]}>
             <F1RacingScene
-              onLapComplete={handleLapComplete}
+              onLapComplete={onLapComplete}
               onPositionUpdate={handlePositionUpdate}
               carType={selectedCar}
               competitors={[]}
@@ -334,7 +339,7 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
       >
         <Physics broadphase="SAP" gravity={[0, -9.81, 0]}>
           <F1RacingScene
-            onLapComplete={handleLapComplete}
+            onLapComplete={onLapComplete}
             onPositionUpdate={handlePositionUpdate}
             carType={selectedCar}
             competitors={competitors}
@@ -372,10 +377,32 @@ export function RacingPage({ provider, signer, account, isConnected, racers, set
 
         {/* Bottom Center Speedometer */}
         <div className="f1-speedometer">
-          <div className="speed-value">
-            {Math.round(Math.max(0, speed * 10))}
+          <div className="speedometer-header">
+            <span className="speed-label">SPEED</span>
+            <div className="speed-indicator">
+              <span className="indicator-dot"></span>
+              <span className="indicator-text">LIVE</span>
+            </div>
           </div>
-          <div className="speed-unit">km/h</div>
+          <div className="speed-display">
+            <div className="speed-value">
+              {Math.round(Math.max(0, speed * 10))}
+            </div>
+            <div className="speed-unit">km/h</div>
+          </div>
+          <div className="speed-bar-container">
+            <div 
+              className="speed-bar" 
+              style={{ width: `${Math.min(100, (Math.max(0, speed * 10) / 380) * 100)}%` }}
+            ></div>
+          </div>
+          <div className="speed-markers">
+            <span>0</span>
+            <span>100</span>
+            <span>200</span>
+            <span>300</span>
+            <span>380</span>
+          </div>
         </div>
 
         {/* Bottom Right Info */}

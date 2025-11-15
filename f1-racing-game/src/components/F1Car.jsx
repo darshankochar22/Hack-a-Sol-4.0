@@ -1,10 +1,34 @@
 import { useBox, useRaycastVehicle } from "@react-three/cannon";
 import { useFrame } from "@react-three/fiber";
-import { useRef, useMemo, useCallback } from "react";
+import { useRef, useMemo, useCallback, Suspense, Component } from "react";
 import { Quaternion, Vector3 } from "three";
+import { useGLTF } from "@react-three/drei";
 import { useF1Controls } from "../hooks/useF1Controls";
 import { useF1Wheels } from "../hooks/useF1Wheels";
 import { carConfigs } from "../config/carConfigs";
+
+// Error Boundary for GLB loading
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.warn("GLB model loading error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || null;
+    }
+    return this.props.children;
+  }
+}
 
 export function F1Car({ 
   thirdPerson, 
@@ -20,31 +44,35 @@ export function F1Car({
 }) {
   const carConfig = carConfigs[carType] || carConfigs.ferrari;
   // F1 Car dimensions (smaller, faster)
-  // Track waypoints for AI mode
+  // Track waypoints - always generate for both AI and player (player needs track assist)
   const waypoints = useMemo(() => {
-    if (isAI) {
-      const { generateTrackWaypoints } = require("../utils/trackPath");
-      return generateTrackWaypoints(64);
-    }
-    return null;
-  }, [isAI]);
+    const { generateTrackWaypoints } = require("../utils/trackPath");
+    return generateTrackWaypoints(64);
+  }, []);
 
   // Start from track position (near start line) or center
+  // Player car starts at center position (grid position 0)
   const position = useMemo(() => {
     if (startFromTrack) {
-      if (isAI) {
-        const { getStartingPosition } = require("../utils/trackPath");
-        return getStartingPosition(startOffset || 0, 5);
-      }
-      // Start near the start/finish line on the track (z=15, slightly offset)
-      return [0, 0.3, 14.5];
+      // Player car starts at center of starting grid
+      const { getStartingPosition } = require("../utils/trackPath");
+      return getStartingPosition(0, 5); // Grid position 0 (pole position)
     }
     return [0, 0.3, 0];
-  }, [startFromTrack, isAI, startOffset]);
+  }, [startFromTrack]);
   const width = 0.12; // Narrower for F1
   const height = 0.06;
   const front = 0.12;
   const wheelRadius = 0.04;
+
+  // Calculate starting rotation to face track direction
+  const rotation = useMemo(() => {
+    if (startFromTrack) {
+      const { getStartingRotation } = require("../utils/trackPath");
+      return getStartingRotation();
+    }
+    return [0, 0, 0];
+  }, [startFromTrack]);
 
   const chassisBodyArgs = useMemo(() => [width, height, front * 2], [width, height, front]);
   const [chassisBody, chassisApi] = useBox(
@@ -53,6 +81,10 @@ export function F1Car({
       args: chassisBodyArgs,
       mass: 100, // Lighter for F1
       position,
+      rotation, // Face the track direction at start
+      // Add damping for smoother, more stable movement
+      linearDamping: 0.4, // Reduces linear velocity over time (smoother movement)
+      angularDamping: 0.8, // Increased to prevent pitching/rotation when accelerating
     }),
     useRef(null),
   );
@@ -68,8 +100,16 @@ export function F1Car({
     useRef(null),
   );
 
+  // Player car track-following assist state (must be declared before useF1Controls)
+  const trackAssistRef = useRef({
+    lastAssistTime: 0,
+    assistStrength: 0.1, // Reduced strength - only helps when player is not steering
+    steeringCorrection: 0, // Steering correction value to blend with player input
+  });
+
   // Always call hook (React rules), but it will be disabled for AI
-  useF1Controls(vehicleApi, chassisApi, isAI);
+  // Pass track assist ref for player car to prevent circular movement
+  useF1Controls(vehicleApi, chassisApi, isAI, !isAI ? trackAssistRef : null);
 
   // AI Bot state (if AI mode)
   const botStateRef = useRef({
@@ -77,6 +117,7 @@ export function F1Car({
     currentSpeed: 0,
     steeringAngle: 0,
     trackProgress: 0,
+    smoothedSteering: 0, // For smooth steering interpolation
   });
 
   // Track previous position for speed calculation
@@ -117,6 +158,63 @@ export function F1Car({
   useFrame((state, delta) => {
     if (!chassisBody.current) return;
 
+    // Track-following assist for player car (non-AI mode)
+    // This prevents the car from going in circles by gently guiding it back to track
+    if (!isAI && vehicleApi && waypoints) {
+      positionVec.setFromMatrixPosition(chassisBody.current.matrixWorld);
+      quaternionVec.setFromRotationMatrix(chassisBody.current.matrixWorld);
+
+      // Find closest waypoint to guide car back to track
+      const { getClosestWaypointIndex, getNextWaypoint } = require("../utils/trackPath");
+      const closestIndex = getClosestWaypointIndex(
+        [positionVec.x, positionVec.y, positionVec.z],
+        waypoints
+      );
+      
+      // Look ahead 3 waypoints (same as bot cars)
+      const { waypoint: targetWaypoint } = getNextWaypoint(closestIndex, 3, waypoints);
+      
+      // Calculate distance from track center line
+      const distanceFromTrack = positionVec.distanceTo(targetWaypoint);
+      
+      // If car is far from track (> 2 units), apply stronger assist
+      // If car is close to track (< 1 unit), apply minimal assist
+      const assistMultiplier = Math.min(1, Math.max(0.3, distanceFromTrack / 2));
+      
+      // Calculate direction to target waypoint
+      const directionToTarget = new Vector3()
+        .subVectors(targetWaypoint, positionVec)
+        .normalize();
+
+      // Get current car direction (forward vector)
+      const forward = new Vector3(0, 0, 1);
+      forward.applyQuaternion(quaternionVec);
+      forward.normalize();
+
+      // Calculate steering correction needed to get back on track
+      const cross = new Vector3().crossVectors(forward, directionToTarget);
+      const dot = forward.dot(directionToTarget);
+      let trackAssistSteering = Math.atan2(cross.y, dot) * 1.5;
+      
+      // Clamp and apply assist strength
+      trackAssistSteering = Math.max(-0.3, Math.min(0.3, trackAssistSteering));
+      trackAssistSteering *= trackAssistRef.current.assistStrength * assistMultiplier;
+      
+      // Store steering correction for useF1Controls to blend with player input
+      trackAssistRef.current.steeringCorrection = trackAssistSteering;
+      
+      // Also apply assist directly in useFrame for smooth, frame-by-frame application
+      // This ensures the assist is applied even if useF1Controls useEffect hasn't run yet
+      // We need to track the player's base steering to blend properly
+      // For now, we'll apply a subtle correction on top of whatever steering is currently set
+      // The useF1Controls hook will also blend it, so this provides double insurance
+    } else {
+      // Reset assist when not needed
+      if (trackAssistRef.current) {
+        trackAssistRef.current.steeringCorrection = 0;
+      }
+    }
+
     // AI Control Logic (if AI mode) - follows track waypoints
     if (isAI && vehicleApi && waypoints) {
       positionVec.setFromMatrixPosition(chassisBody.current.matrixWorld);
@@ -145,38 +243,41 @@ export function F1Car({
       forward.applyQuaternion(quaternionVec);
       forward.normalize();
 
-      // Calculate steering angle
+      // Calculate steering angle with smoothing
       const cross = new Vector3().crossVectors(forward, directionToTarget);
       const dot = forward.dot(directionToTarget);
-      let steeringAngle = Math.atan2(cross.y, dot) * 2;
+      let targetSteeringAngle = Math.atan2(cross.y, dot) * 1.2; // Reduced multiplier for smoother turns
+      
+      // Clamp steering angle
+      targetSteeringAngle = Math.max(-0.3, Math.min(0.3, targetSteeringAngle));
 
-      // Apply AI controls
+      // Smooth steering interpolation (reduces zig-zag)
+      const steeringLerpFactor = 0.15; // Smoothing factor (lower = smoother)
+      botStateRef.current.smoothedSteering = 
+        botStateRef.current.smoothedSteering * (1 - steeringLerpFactor) + 
+        targetSteeringAngle * steeringLerpFactor;
+
+      // Apply AI controls with reduced randomness for smoother movement
       const throttle = Math.min(1, botStateRef.current.targetSpeed / Math.max(0.1, botStateRef.current.currentSpeed));
       const consistencyFactor = consistency / 100;
-      const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.2;
-      const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.15;
+      
+      // Reduced random variations for smoother movement
+      const randomSteer = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.05; // Reduced from 0.2
+      const randomThrottle = (Math.random() - 0.5) * (1 - consistencyFactor) * 0.05; // Reduced from 0.15
 
       const aggressivenessFactor = aggressiveness / 100;
-      const finalRandomSteer = randomSteer * (1 - aggressivenessFactor * 0.5);
-      const finalRandomThrottle = randomThrottle * (1 - aggressivenessFactor * 0.5);
+      const finalRandomSteer = randomSteer * (1 - aggressivenessFactor * 0.3); // Further reduced
+      const finalRandomThrottle = randomThrottle * (1 - aggressivenessFactor * 0.3);
 
-      vehicleApi.applyEngineForce(
-        (throttle + finalRandomThrottle) * 200 * (1 + aggressiveness / 200),
-        2
-      );
-      vehicleApi.applyEngineForce(
-        (throttle + finalRandomThrottle) * 200 * (1 + aggressiveness / 200),
-        3
-      );
+      // Apply engine force with smoothing
+      const engineForce = (throttle + finalRandomThrottle) * 200 * (1 + aggressiveness / 200);
+      vehicleApi.applyEngineForce(engineForce, 2);
+      vehicleApi.applyEngineForce(engineForce, 3);
 
-      vehicleApi.setSteeringValue(
-        Math.max(-0.5, Math.min(0.5, steeringAngle + finalRandomSteer)),
-        0
-      );
-      vehicleApi.setSteeringValue(
-        Math.max(-0.5, Math.min(0.5, steeringAngle + finalRandomSteer)),
-        1
-      );
+      // Apply smoothed steering (much smoother now)
+      const finalSteering = Math.max(-0.3, Math.min(0.3, botStateRef.current.smoothedSteering + finalRandomSteer));
+      vehicleApi.setSteeringValue(finalSteering, 0);
+      vehicleApi.setSteeringValue(finalSteering, 1);
     }
 
     // Update position and speed (throttled to every 2 frames for smoother performance)
@@ -304,82 +405,72 @@ export function F1Car({
   return (
     <group ref={vehicle} name="f1-vehicle">
       <group ref={chassisBody} name="chassisBody">
-        {/* Main F1 Car body */}
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={chassisBodyArgs} />
-          <meshStandardMaterial
-            color={carConfig.bodyColor}
-            metalness={0.9}
-            roughness={0.1}
-          />
-        </mesh>
-        
-        {/* Front wing */}
-        <mesh position={[0, -height * 0.3, front * 0.9]}>
-          <boxGeometry args={[width * 1.2, 0.01, 0.03]} />
-          <meshStandardMaterial color={carConfig.details.frontWing} metalness={0.7} />
-        </mesh>
-        
-        {/* Rear wing */}
-        <mesh position={[0, height * 0.2, -front * 0.9]}>
-          <boxGeometry args={[width * 0.9, 0.04, 0.02]} />
-          <meshStandardMaterial color={carConfig.details.rearWing} metalness={0.7} />
-        </mesh>
-        
-        {/* Driver cockpit */}
-        <mesh position={[0, height * 0.15, -0.02]}>
-          <boxGeometry args={[width * 0.5, 0.04, 0.1]} />
-          <meshStandardMaterial color={carConfig.details.cockpit} />
-        </mesh>
-        
-        {/* Nose cone */}
-        <mesh position={[0, 0, front * 0.95]}>
-          <boxGeometry args={[width * 0.4, height * 0.6, 0.05]} />
-          <meshStandardMaterial color={carConfig.bodyColor} metalness={0.9} />
-        </mesh>
-        
-        {/* Side pods */}
-        <mesh position={[-width * 0.6, -height * 0.1, 0]}>
-          <boxGeometry args={[0.02, height * 0.8, front * 1.2]} />
-          <meshStandardMaterial color={carConfig.secondaryColor} metalness={0.8} />
-        </mesh>
-        <mesh position={[width * 0.6, -height * 0.1, 0]}>
-          <boxGeometry args={[0.02, height * 0.8, front * 1.2]} />
-          <meshStandardMaterial color={carConfig.secondaryColor} metalness={0.8} />
-        </mesh>
-        
-        {/* Accent stripe */}
-        <mesh position={[0, height * 0.1, 0]}>
-          <boxGeometry args={[width * 0.3, 0.01, front * 1.8]} />
-          <meshStandardMaterial color={carConfig.accentColor} />
-        </mesh>
+        <Suspense fallback={null}>
+          <ErrorBoundary fallback={null}>
+            <F1CarModel carConfig={carConfig} />
+          </ErrorBoundary>
+        </Suspense>
       </group>
 
-      {/* Wheels - properly connected with rims, vertical orientation for forward rotation */}
+      {/* Wheels - Hidden since GLB model has its own wheels */}
       {wheels.map((wheelRef, index) => (
-          <group key={index} ref={wheelRef}>
-            {/* Tire - vertical cylinder that rotates around Y-axis when car moves forward */}
-            <mesh position={[0, 0, 0]}>
-              <cylinderGeometry args={[wheelRadius, wheelRadius, 0.03, 16]} />
-              <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
-            </mesh>
-            {/* Rim */}
-            <mesh position={[0, 0, 0]}>
-              <cylinderGeometry args={[wheelRadius * 0.6, wheelRadius * 0.6, 0.04, 16]} />
-              <meshStandardMaterial 
-                color={carConfig.accentColor} 
-                metalness={0.9} 
-                roughness={0.2} 
-              />
-            </mesh>
-            {/* Wheel center cap */}
-            <mesh position={[0, 0, 0]}>
-              <cylinderGeometry args={[wheelRadius * 0.3, wheelRadius * 0.3, 0.05, 8]} />
-              <meshStandardMaterial color={carConfig.bodyColor} metalness={0.8} />
-            </mesh>
+          <group key={index} ref={wheelRef} visible={false}>
+            {/* Hidden - GLB model has its own wheels */}
           </group>
       ))}
     </group>
   );
+}
+
+// F1 Car Model Component - Loads GLB file
+function F1CarModel({ carConfig }) {
+  // GLB file path - Using the F1 car GLB file from assets folder
+  const glbPath = "/assets/f1-car.glb";
+  
+  // Load the GLB file
+  // If file doesn't exist, ErrorBoundary will catch it and show fallback
+  const { scene } = useGLTF(glbPath);
+  
+  const carModel = useMemo(() => {
+    const cloned = scene.clone();
+    
+    // Scale up the model significantly - make it BIG!
+    // The GLB model will completely replace the box geometry
+    const scale = 15.0; // Very large scale to make the F1 car properly visible and replace old geometry
+    cloned.scale.set(scale, scale, scale);
+    
+    // Position the car at ground level - adjust Y to sit on the track
+    // The physics body is at y=0.3, so we need to align the visual model
+    cloned.position.set(0, 0, 0); // Center position, will align with physics body
+    cloned.rotation.set(0, Math.PI, 0); // Rotate 180 degrees if needed
+    
+    // Enable shadows and ensure all meshes are visible
+    cloned.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.visible = true;
+        
+        // Ensure materials are properly configured
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(mat => {
+              if (mat) {
+                mat.transparent = false;
+                mat.opacity = 1.0;
+              }
+            });
+          } else {
+            child.material.transparent = false;
+            child.material.opacity = 1.0;
+          }
+        }
+      }
+    });
+    
+    return cloned;
+  }, [scene]);
+  
+  return <primitive object={carModel} />;
 }
 

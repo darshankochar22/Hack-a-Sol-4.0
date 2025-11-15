@@ -11,7 +11,7 @@ export function Navigation({ account, isConnected, connectWallet, disconnectWall
   return (
     <nav className="main-navigation">
       <div className="nav-brand">
-        <Link to="/">🏎️ F1 Racing</Link>
+        <Link to="/">THE GRID EXPERIENCE</Link>
       </div>
       <div className="nav-links">
         <Link to="/" className={`nav-link ${isActive("/")}`}>

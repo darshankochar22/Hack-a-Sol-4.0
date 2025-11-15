@@ -20,15 +20,16 @@ const DASHBOARD_ROOM = "race-dashboard";
 app.use(cors());
 app.use(express.json());
 
-// Initialize contract listeners
+// Initialize contract listeners (graceful - don't exit if it fails)
 racingContract
   .init()
   .then(() => {
     console.log("✅ Racing contract service initialized");
   })
   .catch((error) => {
-    console.error("Failed to initialize contract service", error);
-    process.exit(1);
+    console.error("⚠️  Failed to initialize contract service:", error.message);
+    console.warn("   Service will continue but contract features may be unavailable");
+    console.warn("   Ensure RACING_ENGINE_ADDRESS is set in .env for full functionality");
   });
 
 // Health check

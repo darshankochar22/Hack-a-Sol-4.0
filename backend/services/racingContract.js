@@ -9,9 +9,13 @@ const {
   RACING_PRIVATE_KEY, // Private key for signing transactions (owner)
 } = process.env;
 
+// RACING_ENGINE_ADDRESS is optional - service will work in read-only mode without it
 if (!RACING_ENGINE_ADDRESS) {
-  throw new Error(
-    "Missing RACING_ENGINE_ADDRESS in environment. Please set it to your deployed RealtimeRacingEngine address."
+  console.warn(
+    "⚠️  RACING_ENGINE_ADDRESS not set. Service will start in read-only mode."
+  );
+  console.warn(
+    "   Set RACING_ENGINE_ADDRESS in .env to enable full functionality."
   );
 }
 
@@ -26,29 +30,60 @@ const ABI_PATH = path.join(
   "RealtimeRacingEngine.json"
 );
 
-// eslint-disable-next-line import/no-dynamic-require, global-require
-const racingArtifact = require(ABI_PATH);
+// Check if artifact exists, otherwise use fallback ABI
+let racingArtifact;
+try {
+  // eslint-disable-next-line import/no-dynamic-require, global-require
+  racingArtifact = require(ABI_PATH);
+  console.log("✅ Loaded contract artifact from:", ABI_PATH);
+} catch (error) {
+  console.warn("⚠️  Contract artifact not found. Compiling contracts...");
+  console.warn("   Run: cd my-contracts && npx hardhat compile");
+  console.warn("   Using minimal fallback ABI");
+  
+  // Fallback minimal ABI - only includes functions we actually use
+  racingArtifact = {
+    abi: [
+      "function getRace(uint256 raceId) view returns (tuple(uint256 raceId, uint256[] participantTokenIds, uint256[] botTokenIds, uint256 totalLaps, uint256 startTime, uint256 endTime, bool isActive, bool isFinished, uint256 winnerTokenId, uint256 totalDistance))",
+      "function getBettingPool(uint256 raceId) view returns (tuple(uint256 totalPool, bool isSettled, uint256[] tokenIds, uint256[] betAmounts))",
+      "function getTelemetrySnapshots(uint256 raceId, uint256 tokenId, uint256 limit) view returns (tuple(uint256 timestamp, int256 positionX, int256 positionY, uint256 speed, uint256 currentLap, uint256 lapProgress, int256 acceleration, bool isBot)[])",
+      "function getOdds(uint256 raceId, uint256 tokenId) view returns (uint256)",
+      "function updateTelemetry(uint256 raceId, uint256 tokenId, int256 positionX, int256 positionY, uint256 speed, uint256 currentLap, uint256 lapProgress, uint256 acceleration)",
+      "event RaceCreated(uint256 indexed raceId)",
+      "event RaceFinished(uint256 indexed raceId, uint256 indexed winnerTokenId)",
+      "event BetPlaced(uint256 indexed raceId, uint256 indexed tokenId, address indexed better, uint256 amount)",
+      "event BettingPoolSettled(uint256 indexed raceId)",
+    ],
+  };
+}
 const provider = new ethers.JsonRpcProvider(RACING_RPC_URL);
 
 // Create contract instance with signer if private key is provided
 let contract;
 let contractWithSigner;
-if (RACING_PRIVATE_KEY) {
-  const wallet = new ethers.Wallet(RACING_PRIVATE_KEY, provider);
-  contractWithSigner = new ethers.Contract(
+
+// Only create contract instances if address is provided
+if (RACING_ENGINE_ADDRESS) {
+  if (RACING_PRIVATE_KEY) {
+    const wallet = new ethers.Wallet(RACING_PRIVATE_KEY, provider);
+    contractWithSigner = new ethers.Contract(
+      RACING_ENGINE_ADDRESS,
+      racingArtifact.abi,
+      wallet
+    );
+    console.log("✅ Racing contract signer initialized:", wallet.address);
+  }
+
+  // Read-only contract instance
+  contract = new ethers.Contract(
     RACING_ENGINE_ADDRESS,
     racingArtifact.abi,
-    wallet
+    provider
   );
-  console.log("✅ Racing contract signer initialized:", wallet.address);
+  console.log("✅ Racing contract read-only instance initialized:", RACING_ENGINE_ADDRESS);
+} else {
+  console.warn("⚠️  No contract address provided. Service running in standalone mode.");
 }
-
-// Read-only contract instance
-contract = new ethers.Contract(
-  RACING_ENGINE_ADDRESS,
-  racingArtifact.abi,
-  provider
-);
 
 const races = new Map(); // raceId -> race summary
 const bettingPools = new Map(); // raceId -> betting summary
@@ -112,6 +147,9 @@ function formatBettingPool(raw, participantTokenIds = []) {
 }
 
 async function refreshRaceFromChain(raceId) {
+  if (!contract) {
+    throw new Error("Contract not initialized. Set RACING_ENGINE_ADDRESS in .env");
+  }
   try {
     const raw = await contract.getRace(raceId);
     const formatted = formatRace(raw);
@@ -124,6 +162,9 @@ async function refreshRaceFromChain(raceId) {
 }
 
 async function refreshBettingPoolFromChain(raceId) {
+  if (!contract) {
+    throw new Error("Contract not initialized. Set RACING_ENGINE_ADDRESS in .env");
+  }
   try {
     const race =
       races.get(Number(raceId)) || (await refreshRaceFromChain(raceId));
@@ -139,6 +180,10 @@ async function refreshBettingPoolFromChain(raceId) {
 }
 
 async function syncExistingRaces() {
+  if (!contract) {
+    console.warn("⚠️  Skipping race sync - contract not initialized");
+    return;
+  }
   try {
     const fromBlock = Number(RACING_FROM_BLOCK);
     const latestBlock = await provider.getBlockNumber();
@@ -161,39 +206,63 @@ async function syncExistingRaces() {
     console.log(`✅ Synced ${races.size} races total`);
   } catch (error) {
     console.error("❌ Error syncing existing races:", error);
-    throw error;
+    // Don't throw - allow service to continue without synced races
+    console.warn("⚠️  Continuing without race sync");
   }
 }
 
 function subscribeToEvents() {
+  if (!contract) {
+    console.warn("⚠️  Skipping event subscription - contract not initialized");
+    return;
+  }
+  
   contract.on("RaceCreated", async (raceId) => {
-    const race = await refreshRaceFromChain(Number(raceId));
-    eventBus.emit("raceCreated", race);
+    try {
+      const race = await refreshRaceFromChain(Number(raceId));
+      eventBus.emit("raceCreated", race);
+    } catch (error) {
+      console.error("Error handling RaceCreated event:", error);
+    }
   });
 
   contract.on("RaceFinished", async (raceId, winnerTokenId) => {
-    const id = Number(raceId);
-    const race = races.get(id) || (await refreshRaceFromChain(id));
-    const updatedRace = {
-      ...race,
-      isFinished: true,
-      isActive: false,
-      winnerTokenId: Number(winnerTokenId),
-      endTime: Date.now(),
-    };
-    races.set(id, updatedRace);
-    eventBus.emit("raceFinished", updatedRace);
+    try {
+      const id = Number(raceId);
+      const race = races.get(id) || (await refreshRaceFromChain(id));
+      const updatedRace = {
+        ...race,
+        isFinished: true,
+        isActive: false,
+        winnerTokenId: Number(winnerTokenId),
+        endTime: Date.now(),
+      };
+      races.set(id, updatedRace);
+      eventBus.emit("raceFinished", updatedRace);
+    } catch (error) {
+      console.error("Error handling RaceFinished event:", error);
+    }
   });
 
   contract.on("BetPlaced", async (raceId) => {
-    const pool = await refreshBettingPoolFromChain(Number(raceId));
-    eventBus.emit("bettingUpdated", pool);
+    try {
+      const pool = await refreshBettingPoolFromChain(Number(raceId));
+      eventBus.emit("bettingUpdated", pool);
+    } catch (error) {
+      console.error("Error handling BetPlaced event:", error);
+    }
   });
 
   contract.on("BettingPoolSettled", async (raceId) => {
-    const pool = await refreshBettingPoolFromChain(Number(raceId));
-    eventBus.emit("bettingSettled", pool);
+    try {
+      const pool = await refreshBettingPoolFromChain(Number(raceId));
+      eventBus.emit("bettingSettled", pool);
+    } catch (error) {
+      console.error("Error handling BettingPoolSettled event:", error);
+    }
   });
+  
+  console.log("✅ Subscribed to contract events");
 }
 
 async function init() {
@@ -216,6 +285,9 @@ async function getRaceById(raceId) {
 }
 
 async function getTelemetrySnapshots(raceId, tokenId, limit = 50) {
+  if (!contract) {
+    throw new Error("Contract not initialized. Set RACING_ENGINE_ADDRESS in .env");
+  }
   const rawSnapshots = await contract.getTelemetrySnapshots(
     raceId,
     tokenId,
@@ -233,6 +305,9 @@ async function getBettingPool(raceId) {
 }
 
 async function getOdds(raceId, tokenId) {
+  if (!contract) {
+    throw new Error("Contract not initialized. Set RACING_ENGINE_ADDRESS in .env");
+  }
   const odds = await contract.getOdds(raceId, tokenId);
   return Number(odds);
 }

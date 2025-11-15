@@ -30,9 +30,18 @@ export function F1BotCar({
   const waypoints = useMemo(() => generateTrackWaypoints(64), []);
   
   // Start position on track with proper grid offset
+  // Use tokenId to create unique starting positions side-by-side
   const position = useMemo(() => {
-    return getStartingPosition(startOffset, 5); // Assuming max 5 cars
-  }, [startOffset]);
+    // Use tokenId as grid position to space cars out
+    const gridPos = tokenId ? (tokenId % 5) : 0; // Cycle through 0-4 for spacing
+    return getStartingPosition(gridPos, 5);
+  }, [tokenId]);
+
+  // Calculate starting rotation to face track direction
+  const rotation = useMemo(() => {
+    const { getStartingRotation } = require("../utils/trackPath");
+    return getStartingRotation();
+  }, []);
 
   const width = 0.12;
   const height = 0.06;
@@ -46,6 +55,10 @@ export function F1BotCar({
       args: chassisBodyArgs,
       mass: 100,
       position,
+      rotation, // Face the track direction at start
+      // Add damping for smoother, more stable movement (prevents falling off)
+      linearDamping: 0.4, // Reduces linear velocity over time (smoother movement)
+      angularDamping: 0.4, // Reduces rotation velocity (prevents wobbling and falling)
     }),
     useRef(null),
   );
