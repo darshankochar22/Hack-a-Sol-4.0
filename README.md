@@ -1,6 +1,7 @@
-# TurboTradeX — Decentralized F1 GameFi Exchange
+# <img src="public/Logo.jpeg" alt="Logo" width="40" style="vertical-align: middle;"/> The Grid Experience  
+### *Don’t just Race — Bet, Trade, and Speculate.*
 
-TurboTradeX is a Web3-powered racing–economy simulator where AI-driven F1-inspired racers compete in virtual tournaments, and every race moment dynamically affects the live on-chain market value of racer NFTs.  
+Grid Experience is a Web3-powered racing–economy simulator where AI-driven F1-inspired racers compete in virtual tournaments, and every race moment dynamically affects the live on-chain market value of racer NFTs.  
 Players don’t just watch the race — they own, trade, bid, and speculate on racers whose values fluctuate in real time based on performance, AI strategy, and market movements.
 
 Think Formula 1 × Stock Market × GameFi.
