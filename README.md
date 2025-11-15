@@ -254,10 +254,10 @@ This merges Web3 trading with global motorsports analytics.
 
 ## 📸 Screenshots of the Web Page
 
-![Web Page](/Img1.png)
-![Web Page](/Img2.png)
-![Web Page](/Img3.png)
-![Web Page](/Img4.png)
+![Web Page](/Img1.jpeg)
+![Web Page](/Img2.jpeg)
+![Web Page](/Img3.jpeg)
+![Web Page](/Img4.jpeg)
 
 
 ---
