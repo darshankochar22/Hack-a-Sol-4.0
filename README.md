@@ -22,9 +22,11 @@ Think Formula 1 × Stock Market × GameFi.
 
 ## 📸 Screenshots of the Web Page
 
-![Web Page](public/assets/red_bull.jpg)
-
-![Web Page](public/f1-loader-bg.png)
+![Web Page](public/Img1.jpeg)
+![Web Page](public/Img2.jpeg)
+![Web Page](public/Img3.jpeg)
+![Web Page](public/Img4.jpeg)
+![Web Page](public/Img5.jpeg)
 
 ---
 
