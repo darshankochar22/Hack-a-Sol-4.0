@@ -4,7 +4,7 @@
   <img src="public/Logo.jpg" alt="Logo" width="200">
 </td>
 <td style="vertical-align: middle; border: none; padding-left: 15px;">
-  <font size="26"><b>The Grid Experience</b></font>
+  <font size="7"><b>The Grid Experience</b></font>
 </td>
 </tr>
 </table>
